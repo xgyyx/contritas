@@ -1,0 +1,10 @@
+{
+  "name": "@contritas/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'Web app not yet implemented'",
+    "build": "echo 'Web app not yet implemented'",
+    "typecheck": "echo 'Web app not yet implemented'"
+  }
+}
