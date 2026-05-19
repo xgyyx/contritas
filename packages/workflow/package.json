@@ -16,8 +16,10 @@
   },
   "dependencies": {
     "xstate": "^5.18.0",
+    "p-limit": "^6.1.0",
     "@contritas/shared": "workspace:*",
-    "@contritas/llm": "workspace:*"
+    "@contritas/llm": "workspace:*",
+    "@contritas/search": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.0",

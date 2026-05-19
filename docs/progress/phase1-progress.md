@@ -179,12 +179,6 @@ OPENAI_COMPATIBLE_BASE_URL=https://your-proxy.com/v1
 OPENAI_COMPATIBLE_MODEL=gpt-4o
 ```
 
-## 下一步：Phase 2
+## 下一步：Phase 2 ✅ 已完成
 
-Phase 2 将实现：
-
-- Tavily 搜索接入
-- Jina Reader 内容提取
-- Search Orchestrator 多轮检索
-- Phase 3（多维度并行检索）
-- Redis + SSE 进度推送完善
+详见 [phase2-progress.md](./phase2-progress.md)

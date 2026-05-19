@@ -1,9 +1,17 @@
 import type { ProviderConfig } from "@contritas/llm";
 
+export interface SearchConfig {
+  tavilyApiKey?: string;
+  serperApiKey?: string;
+  jinaApiKey?: string;
+  firecrawlApiKey?: string;
+}
+
 export interface AppConfig {
   databaseUrl: string;
   redisUrl: string;
   llmProvider: ProviderConfig;
+  search: SearchConfig;
   port: number;
 }
 
@@ -19,11 +27,13 @@ export function loadConfig(): AppConfig {
   }
 
   const llmProvider = loadLLMConfig();
+  const search = loadSearchConfig();
 
   return {
     databaseUrl,
     redisUrl,
     llmProvider,
+    search,
     port: parseInt(process.env.PORT ?? "4000", 10),
   };
 }
@@ -63,4 +73,19 @@ function loadLLMConfig(): ProviderConfig {
     default:
       throw new Error(`Unknown LLM_PROVIDER: ${provider}. Supported: claude, openai-compatible`);
   }
+}
+
+function loadSearchConfig(): SearchConfig {
+  const config: SearchConfig = {
+    tavilyApiKey: process.env.TAVILY_API_KEY || undefined,
+    serperApiKey: process.env.SERPER_API_KEY || undefined,
+    jinaApiKey: process.env.JINA_API_KEY || undefined,
+    firecrawlApiKey: process.env.FIRECRAWL_API_KEY || undefined,
+  };
+
+  if (!config.tavilyApiKey && !config.serperApiKey) {
+    console.warn("[config] No search provider API key configured (TAVILY_API_KEY or SERPER_API_KEY). Search phase will fail.");
+  }
+
+  return config;
 }

@@ -86,3 +86,10 @@ export async function updateSessionPhases(id: string, phases: unknown[]) {
     .set({ phases, updatedAt: new Date() })
     .where(eq(schema.researchSessions.id, id));
 }
+
+export async function updateSearchCallsUsed(id: string, searchCallsUsed: number) {
+  await db
+    .update(schema.researchSessions)
+    .set({ searchCallsUsed, updatedAt: new Date() })
+    .where(eq(schema.researchSessions.id, id));
+}

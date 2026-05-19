@@ -2,9 +2,8 @@ import type { Job } from "bullmq";
 import { createProvider } from "@contritas/llm";
 import type { ResearchJobData } from "../lib/queue.js";
 import * as sessionService from "../services/session.service.js";
-import { createWorkflowController } from "../services/workflow.service.js";
+import { createWorkflowController, buildSearchDeps } from "../services/workflow.service.js";
 import { createRedisConnection } from "../lib/redis.js";
-import { publishEvent } from "../services/stream.service.js";
 
 const CLARIFICATION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -33,6 +32,9 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
 
   const input = session.input as { originalText: string; language: "zh" | "en" };
 
+  // Build search dependencies
+  const searchDeps = buildSearchDeps(appConfig.search);
+
   // Create workflow controller
   const model = sessionConfig.llmModel || process.env.OPENAI_COMPATIBLE_MODEL || "claude-sonnet-4-20250514";
   const controller = createWorkflowController(
@@ -40,7 +42,8 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
     input.originalText,
     input.language,
     llmProvider,
-    model
+    model,
+    searchDeps
   );
 
   // Handle workflow completion
@@ -50,8 +53,8 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
         : result.finalState === "cancelled" ? "cancelled"
         : "completed";
 
-      // For Phase 1, retrievalPending is the end of the line
-      const status = result.finalState === "retrievalPending" ? "completed" : finalStatus;
+      // validationPending is the new terminal state (Phase 4 not yet implemented)
+      const status = result.finalState === "validationPending" ? "completed" : finalStatus;
       await sessionService.updateSessionStatus(sessionId, status as "completed" | "failed" | "cancelled");
       console.log(`[Worker] Session ${sessionId} finished with state: ${result.finalState}`);
       resolve();
@@ -126,7 +129,6 @@ async function handleAwaitingClarification(
     }, 20_000);
 
     // Clean up lock extender on resolution
-    const originalResolve = resolve;
     const cleanup = () => {
       clearInterval(lockExtender);
       clearTimeout(timeout);

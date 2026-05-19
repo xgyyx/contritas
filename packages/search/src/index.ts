@@ -1,2 +1,11 @@
-// Search package - placeholder for Phase 2 implementation
-export {};
+export * from "./types.js";
+export { TavilySearchProvider } from "./providers/tavily.js";
+export { SerperSearchProvider } from "./providers/serper.js";
+export { JinaExtractor } from "./extractors/jina.js";
+export { FirecrawlExtractor } from "./extractors/firecrawl.js";
+export { WebArchiveExtractor } from "./extractors/web-archive.js";
+export { FallbackExtractorChain } from "./extractors/fallback-chain.js";
+export { RedisSearchCache } from "./cache.js";
+export { SessionCallCounter, createSearchLimiter, createExtractLimiter } from "./rate-limiter.js";
+export { URLDeduplicator } from "./deduplicator.js";
+export { SearchOrchestrator } from "./orchestrator.js";

@@ -1,11 +1,26 @@
 import { createActor } from "xstate";
-import { eq } from "drizzle-orm";
-import { createResearchMachine, type ResearchContext, type WorkflowDeps, type WorkflowEmittedEvent } from "@contritas/workflow";
+import { createResearchMachine, type ResearchContext, type WorkflowDeps, type WorkflowEmittedEvent, type SearchDeps } from "@contritas/workflow";
 import { generateId, type ProgressEvent } from "@contritas/shared";
+import {
+  SEARCH_CONCURRENT_LIMIT,
+  EXTRACT_CONCURRENT_LIMIT,
+  MAX_SEARCH_CALLS_PER_SESSION,
+} from "@contritas/shared";
 import { createProvider, type LLMProvider } from "@contritas/llm";
+import {
+  TavilySearchProvider,
+  SerperSearchProvider,
+  JinaExtractor,
+  FirecrawlExtractor,
+  WebArchiveExtractor,
+  FallbackExtractorChain,
+  RedisSearchCache,
+} from "@contritas/search";
 import { db, schema } from "../drizzle/index.js";
 import { publishEvent } from "./stream.service.js";
 import * as sessionService from "./session.service.js";
+import type { SearchConfig } from "../config.js";
+import { getRedis } from "../lib/redis.js";
 
 export interface WorkflowRunResult {
   finalState: string;
@@ -25,6 +40,7 @@ export function createInitialContext(
     },
     assumptions: [],
     dimensions: [],
+    evidence: [],
     phases: [],
     currentPhase: "inputValidation",
     clarificationHistory: [],
@@ -34,17 +50,65 @@ export function createInitialContext(
       totalTokens: 0,
       estimatedCostUSD: 0,
     },
+    searchCallsUsed: 0,
+  };
+}
+
+export function buildSearchDeps(searchConfig: SearchConfig): SearchDeps | undefined {
+  // Build search provider (require at least one)
+  let searchProvider;
+  let fallbackSearchProvider;
+
+  if (searchConfig.tavilyApiKey) {
+    searchProvider = new TavilySearchProvider(searchConfig.tavilyApiKey);
+    if (searchConfig.serperApiKey) {
+      fallbackSearchProvider = new SerperSearchProvider(searchConfig.serperApiKey);
+    }
+  } else if (searchConfig.serperApiKey) {
+    searchProvider = new SerperSearchProvider(searchConfig.serperApiKey);
+  } else {
+    return undefined;
+  }
+
+  // Build content extractor (fallback chain)
+  const extractors = [];
+  extractors.push(new JinaExtractor(searchConfig.jinaApiKey));
+  if (searchConfig.firecrawlApiKey) {
+    extractors.push(new FirecrawlExtractor(searchConfig.firecrawlApiKey));
+  }
+  extractors.push(new WebArchiveExtractor(searchConfig.jinaApiKey));
+  const contentExtractor = new FallbackExtractorChain(extractors);
+
+  // Build cache
+  let cache;
+  try {
+    const redis = getRedis();
+    cache = new RedisSearchCache(redis);
+  } catch {
+    // Redis not available — proceed without cache
+  }
+
+  return {
+    searchProvider,
+    fallbackSearchProvider,
+    contentExtractor,
+    cache,
+    searchConcurrencyLimit: SEARCH_CONCURRENT_LIMIT,
+    extractConcurrencyLimit: EXTRACT_CONCURRENT_LIMIT,
+    maxSearchCallsPerSession: MAX_SEARCH_CALLS_PER_SESSION,
   };
 }
 
 export function createWorkflowDeps(
   sessionId: string,
   llmProvider: LLMProvider,
-  llmModel: string
+  llmModel: string,
+  searchDeps?: SearchDeps
 ): WorkflowDeps {
   return {
     llmProvider,
     llmModel,
+    searchDeps,
     emitEvent: (event: WorkflowEmittedEvent) => {
       const progressEvent: ProgressEvent = (() => {
         switch (event.type) {
@@ -69,6 +133,30 @@ export function createWorkflowDeps(
               recoverable: event.recoverable,
               timestamp: new Date().toISOString(),
             };
+          case "dimension_update":
+            return {
+              type: "dimension_update" as const,
+              dimensionId: event.dimensionId,
+              sourcesFound: event.sourcesFound,
+              round: event.round,
+              timestamp: new Date().toISOString(),
+            };
+          case "search_executed":
+            return {
+              type: "search_executed" as const,
+              query: event.query,
+              language: event.language,
+              resultsCount: event.resultsCount,
+              timestamp: new Date().toISOString(),
+            };
+          case "evidence_added":
+            return {
+              type: "evidence_added" as const,
+              dimensionId: event.dimensionId,
+              source: event.source,
+              credibility: event.credibility,
+              timestamp: new Date().toISOString(),
+            };
         }
       })();
 
@@ -83,7 +171,6 @@ export function createWorkflowDeps(
 
         // Persist assumptions if they exist
         if (context.assumptions.length > 0) {
-          // Upsert assumptions
           for (const assumption of context.assumptions) {
             const id = generateId();
             await db
@@ -119,6 +206,38 @@ export function createWorkflowDeps(
               .onConflictDoNothing();
           }
         }
+
+        // Persist evidence if it exists
+        if (context.evidence.length > 0) {
+          for (const ev of context.evidence) {
+            const id = generateId();
+            await db
+              .insert(schema.evidence)
+              .values({
+                id,
+                sessionId,
+                dimensionId: ev.dimensionId,
+                searchQuery: ev.searchQuery,
+                searchRound: ev.searchRound,
+                url: ev.url,
+                title: ev.title,
+                sourceName: ev.sourceName,
+                sourceType: ev.sourceType,
+                credibility: ev.credibility,
+                publishedDate: ev.publishedDate,
+                language: ev.language,
+                keyExcerpt: ev.keyExcerpt,
+                relationship: ev.relationship,
+                timelinessRisk: ev.timelinessRisk,
+              })
+              .onConflictDoNothing();
+          }
+        }
+
+        // Update search calls used
+        if (context.searchCallsUsed > 0) {
+          await sessionService.updateSearchCallsUsed(sessionId, context.searchCallsUsed);
+        }
       } catch (err) {
         console.error(`Failed to persist state for session ${sessionId}:`, err);
       }
@@ -131,10 +250,11 @@ export async function runWorkflow(
   originalText: string,
   language: "zh" | "en",
   llmProvider: LLMProvider,
-  llmModel: string
+  llmModel: string,
+  searchDeps?: SearchDeps
 ): Promise<WorkflowRunResult> {
   const context = createInitialContext(sessionId, originalText, language);
-  const workflowDeps = createWorkflowDeps(sessionId, llmProvider, llmModel);
+  const workflowDeps = createWorkflowDeps(sessionId, llmProvider, llmModel, searchDeps);
   const machine = createResearchMachine(workflowDeps);
 
   return new Promise((resolve, reject) => {
@@ -166,10 +286,11 @@ export function createWorkflowController(
   originalText: string,
   language: "zh" | "en",
   llmProvider: LLMProvider,
-  llmModel: string
+  llmModel: string,
+  searchDeps?: SearchDeps
 ) {
   const context = createInitialContext(sessionId, originalText, language);
-  const workflowDeps = createWorkflowDeps(sessionId, llmProvider, llmModel);
+  const workflowDeps = createWorkflowDeps(sessionId, llmProvider, llmModel, searchDeps);
   const machine = createResearchMachine(workflowDeps);
   const actor = createActor(machine, { input: context });
 

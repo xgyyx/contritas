@@ -4,10 +4,12 @@ import type {
   ResearchEvent,
   WorkflowDeps,
   ValidateInputResult,
+  RetrievalResult,
 } from "./types.js";
 import { validateInput } from "./actors/validate-input.js";
 import { decompose } from "./actors/decompose.js";
 import { plan } from "./actors/plan.js";
+import { searchDimensions } from "./actors/search-dimensions.js";
 
 export function createResearchMachine(deps: WorkflowDeps) {
   return setup({
@@ -20,6 +22,7 @@ export function createResearchMachine(deps: WorkflowDeps) {
       validateInput,
       decompose,
       plan,
+      searchDimensions,
     },
     guards: {
       inputValid: ({ event }: { event: AnyEventObject }) => {
@@ -177,7 +180,7 @@ export function createResearchMachine(deps: WorkflowDeps) {
           src: "plan",
           input: ({ context }) => ({ context, deps }),
           onDone: {
-            target: "retrievalPending",
+            target: "retrieval",
             actions: [
               assign({
                 dimensions: ({ event }) => event.output.dimensions,
@@ -207,8 +210,42 @@ export function createResearchMachine(deps: WorkflowDeps) {
         },
       },
 
-      // Stub: Phase 3+ not yet implemented
-      retrievalPending: {
+      // Phase 3: Multi-source Retrieval
+      retrieval: {
+        entry: [
+          assign({ currentPhase: () => "retrieval" as const }),
+          () => { deps.emitEvent({ type: "phase_change", phase: "retrieval", status: "started" }); },
+        ],
+        invoke: {
+          src: "searchDimensions",
+          input: ({ context }) => ({ context, deps }),
+          onDone: {
+            target: "validationPending",
+            actions: [
+              assign({
+                evidence: ({ event }) => (event.output as RetrievalResult).evidence,
+                searchCallsUsed: ({ event }) => (event.output as RetrievalResult).searchCallsUsed,
+                phases: ({ context }) => [
+                  ...context.phases.filter((p) => p.id !== "retrieval"),
+                  { id: "retrieval" as const, status: "completed" as const, completedAt: new Date().toISOString() },
+                ],
+              }),
+              () => { deps.emitEvent({ type: "phase_change", phase: "retrieval", status: "completed" }); },
+              ({ context }) => { deps.persistState(context); },
+            ],
+          },
+          onError: {
+            target: "failed",
+            actions: [
+              assign({ error: ({ event }) => String(event.error) }),
+              () => { deps.emitEvent({ type: "error", message: "Multi-source retrieval failed", recoverable: false }); },
+            ],
+          },
+        },
+      },
+
+      // Stub: Phase 4+ not yet implemented
+      validationPending: {
         type: "final",
       },
 

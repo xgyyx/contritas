@@ -13,3 +13,7 @@ export { PHASE1_SYSTEM_PROMPT, phase1OutputSchema } from "./prompts/phase1-decom
 export type { Phase1Output } from "./prompts/phase1-decompose.js";
 export { PHASE2_SYSTEM_PROMPT, phase2OutputSchema } from "./prompts/phase2-plan.js";
 export type { Phase2Output } from "./prompts/phase2-plan.js";
+export { PHASE3_EVIDENCE_EVAL_SYSTEM_PROMPT, phase3EvidenceEvalSchema } from "./prompts/phase3-extract.js";
+export type { Phase3EvidenceEvalOutput } from "./prompts/phase3-extract.js";
+export { PHASE3_KEYWORD_REFINE_SYSTEM_PROMPT, phase3KeywordRefineSchema } from "./prompts/phase3-refine-keywords.js";
+export type { Phase3KeywordRefineOutput } from "./prompts/phase3-refine-keywords.js";

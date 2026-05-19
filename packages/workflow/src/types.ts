@@ -4,9 +4,16 @@ import type {
   Language,
   ComplexityLevel,
   TokenUsage,
+  Credibility,
 } from "@contritas/shared";
 import type { LLMProvider } from "@contritas/llm";
 import type { Phase0Output } from "@contritas/llm";
+import type {
+  SearchProvider,
+  ContentExtractor,
+  SearchCache,
+  SearchEventCallback,
+} from "@contritas/search";
 
 // ══════════════════════════════════════════
 // Machine Context
@@ -21,11 +28,13 @@ export interface ResearchContext {
   };
   assumptions: AssumptionData[];
   dimensions: DimensionData[];
+  evidence: EvidenceData[];
   complexity?: ComplexityLevel;
   phases: PhaseState[];
   currentPhase: PhaseId;
   clarificationHistory: ClarificationEntry[];
   tokenUsage: TokenUsage;
+  searchCallsUsed: number;
   error?: string;
 }
 
@@ -42,6 +51,22 @@ export interface DimensionData {
   counterQuestion: string;
   keywords: { zh: string[]; en: string[] };
   relatedAssumptionIndices: number[];
+}
+
+export interface EvidenceData {
+  dimensionId: string;
+  url: string;
+  title: string;
+  sourceName: string;
+  sourceType: string;
+  credibility: string;
+  publishedDate?: string;
+  language: Language;
+  keyExcerpt: string;
+  relationship: string;
+  timelinessRisk: boolean;
+  searchQuery: string;
+  searchRound: number;
 }
 
 export interface ClarificationEntry {
@@ -61,12 +86,29 @@ export type ResearchEvent =
   | { type: "CANCEL" };
 
 // ══════════════════════════════════════════
+// Search Dependencies
+// ══════════════════════════════════════════
+
+export interface SearchDeps {
+  searchProvider: SearchProvider;
+  fallbackSearchProvider?: SearchProvider;
+  contentExtractor: ContentExtractor;
+  cache?: SearchCache;
+  searchConcurrencyLimit: number;
+  extractConcurrencyLimit: number;
+  maxSearchCallsPerSession: number;
+  /** LLM model to use for evidence evaluation (can be cheaper model) */
+  evidenceEvalModel?: string;
+}
+
+// ══════════════════════════════════════════
 // Actor Dependencies (injected)
 // ══════════════════════════════════════════
 
 export interface WorkflowDeps {
   llmProvider: LLMProvider;
   llmModel: string;
+  searchDeps?: SearchDeps;
   emitEvent: (event: WorkflowEmittedEvent) => void;
   persistState: (context: ResearchContext) => Promise<void>;
 }
@@ -74,7 +116,10 @@ export interface WorkflowDeps {
 export type WorkflowEmittedEvent =
   | { type: "phase_change"; phase: PhaseId; status: "started" | "completed" }
   | { type: "clarification"; questions: string[]; suggestedDirections?: string[] }
-  | { type: "error"; message: string; recoverable: boolean };
+  | { type: "error"; message: string; recoverable: boolean }
+  | { type: "dimension_update"; dimensionId: string; sourcesFound: number; round: number }
+  | { type: "search_executed"; query: string; language: Language; resultsCount: number }
+  | { type: "evidence_added"; dimensionId: string; source: string; credibility: Credibility };
 
 // ══════════════════════════════════════════
 // Actor Input/Output
@@ -95,4 +140,14 @@ export interface PlanResult {
   complexity: ComplexityLevel;
   estimatedMinutes: number;
   usage: TokenUsage;
+}
+
+export interface RetrievalResult {
+  evidence: EvidenceData[];
+  searchCallsUsed: number;
+  dimensionResults: Array<{
+    dimensionId: string;
+    sufficient: boolean;
+    roundsUsed: number;
+  }>;
 }

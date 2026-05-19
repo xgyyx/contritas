@@ -32,6 +32,9 @@ importers:
       '@contritas/llm':
         specifier: workspace:*
         version: link:../../packages/llm
+      '@contritas/search':
+        specifier: workspace:*
+        version: link:../../packages/search
       '@contritas/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -111,10 +114,22 @@ importers:
       '@contritas/shared':
         specifier: workspace:*
         version: link:../shared
+      p-limit:
+        specifier: ^6.1.0
+        version: 6.2.0
     devDependencies:
+      '@contritas/llm':
+        specifier: workspace:*
+        version: link:../llm
+      ioredis:
+        specifier: ^5.4.0
+        version: 5.10.1
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.19)
 
   packages/shared:
     dependencies:
@@ -137,9 +152,15 @@ importers:
       '@contritas/llm':
         specifier: workspace:*
         version: link:../llm
+      '@contritas/search':
+        specifier: workspace:*
+        version: link:../search
       '@contritas/shared':
         specifier: workspace:*
         version: link:../shared
+      p-limit:
+        specifier: ^6.1.0
+        version: 6.2.0
       xstate:
         specifier: ^5.18.0
         version: 5.31.1
@@ -1322,6 +1343,10 @@ packages:
       zod:
         optional: true
 
+  p-limit@6.2.0:
+    resolution: {integrity: sha512-kuUqqHNUqoIWp/c467RI4X6mmyuojY5jGutNU0wVTmEOOfcuwLqyMVoAi9MKi2Ak+5i9+nhmrK4ufZE8069kHA==}
+    engines: {node: '>=18'}
+
   pathe@1.1.2:
     resolution: {integrity: sha512-whLdWMYL2TwI08hn8/ZqAbrVemu0LNaNNJZX73O6qaIdCTfXutsLhMkjdENX0qhsQ9uIimo4/aQOmXkoon2nDQ==}
 
@@ -1515,6 +1540,10 @@ packages:
 
   xstate@5.31.1:
     resolution: {integrity: sha512-3P7t7GQ61BvLu+8Cj6Zq7rcS34vecL9pvfN2ucUWmIFIUG+rAREviOs4Xy4OO3BuJHSz6RLU8eqDXxSbVotjDQ==}
+
+  yocto-queue@1.2.2:
+    resolution: {integrity: sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ==}
+    engines: {node: '>=12.20'}
 
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
@@ -2350,6 +2379,10 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
+  p-limit@6.2.0:
+    dependencies:
+      yocto-queue: 1.2.2
+
   pathe@1.1.2: {}
 
   pathval@2.0.1: {}
@@ -2531,5 +2564,7 @@ snapshots:
       stackback: 0.0.2
 
   xstate@5.31.1: {}
+
+  yocto-queue@1.2.2: {}
 
   zod@3.25.76: {}

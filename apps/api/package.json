@@ -25,7 +25,8 @@
     "xstate": "^5.18.0",
     "@contritas/shared": "workspace:*",
     "@contritas/workflow": "workspace:*",
-    "@contritas/llm": "workspace:*"
+    "@contritas/llm": "workspace:*",
+    "@contritas/search": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.0",

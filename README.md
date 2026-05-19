@@ -42,7 +42,7 @@ contritas/
 │   ├── shared/           # 共享类型、Zod schemas、工具函数
 │   ├── llm/              # LLM 抽象层 (providers + prompts)
 │   ├── workflow/          # XState 状态机 (研究流程)
-│   └── search/           # 搜索抽象层 (Phase 2)
+│   └── search/           # 搜索抽象层 (Tavily/Serper + Jina/Firecrawl)
 ├── docker-compose.yml    # PostgreSQL + Redis
 ├── turbo.json
 └── pnpm-workspace.yaml
@@ -67,7 +67,7 @@ docker compose up -d
 
 # 3. 配置环境变量
 cp .env.example .env
-# 编辑 .env，填入 ANTHROPIC_API_KEY
+# 编辑 .env，填入 ANTHROPIC_API_KEY 和 TAVILY_API_KEY
 
 # 4. 推送数据库 schema
 cd apps/api && pnpm db:push
@@ -105,8 +105,8 @@ Phase 5: 综合报告 → 生成结构化尽调报告
 ## 开发进度
 
 - [x] Phase 1: 核心骨架搭建 (Monorepo + DB + LLM + Workflow + API)
-- [ ] Phase 2: 搜索能力接入 (Tavily + Jina Reader + Search Orchestrator)
-- [ ] Phase 3: 完整研究流程 (6 Phase 全链路打通)
+- [x] Phase 2: 搜索能力接入 (Tavily + Jina Reader + Search Orchestrator)
+- [ ] Phase 3: 完整研究流程 (交叉验证 + 报告综合)
 - [ ] Phase 4: Web 前端 (Next.js + 实时进度展示)
 - [ ] Phase 5: 优化与上线
 
