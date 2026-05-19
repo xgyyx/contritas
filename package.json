@@ -1,6 +1,17 @@
 {
   "name": "contritas",
+  "version": "0.1.0",
+  "description": "Grind assumptions. Surface truth. — 通过反证逼近真相的通用深度研究 Agent",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xgyyx/contritas.git"
+  },
+  "homepage": "https://github.com/xgyyx/contritas",
+  "bugs": {
+    "url": "https://github.com/xgyyx/contritas/issues"
+  },
+  "license": "MIT",
   "engines": {
     "node": ">=22"
   },

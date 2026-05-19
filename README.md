@@ -110,6 +110,22 @@ Phase 5: 综合报告 → 生成结构化尽调报告
 - [ ] Phase 4: Web 前端 (Next.js + 实时进度展示)
 - [ ] Phase 5: 优化与上线
 
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [PRD](docs/prd/prd.md) | 产品需求：定位、用户故事、功能列表、非功能需求 |
+| [报告模板](docs/prd/report-template.md) | Agent 输出报告的标准格式 |
+| [Agent 行为规范](docs/guides/agent-behavior.md) | 评分、降级、交互、约束等运行时规则 |
+| [架构总览](docs/architecture/overview.md) | 系统架构图、选型决策、项目结构 |
+| [工作流引擎](docs/architecture/workflow-engine.md) | XState 状态机、重试、持久化 |
+| [LLM 层](docs/architecture/llm-layer.md) | Provider 接口、Model Router |
+| [搜索层](docs/architecture/search-layer.md) | 搜索/提取 Provider、编排器 |
+| [数据模型](docs/architecture/data-model.md) | 实体关系、PostgreSQL Schema |
+| [基础设施](docs/architecture/realtime-and-infra.md) | SSE、存储、部署、安全 |
+| [实施路线](docs/progress/roadmap.md) | 各阶段规划与进度 |
+| [PRD 映射表](docs/prd-mapping.md) | PRD 需求 → 技术实现追踪 |
+
 ## License
 
 MIT
