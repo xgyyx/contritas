@@ -1,5 +1,7 @@
 export * from "./types.js";
 export { ClaudeProvider } from "./providers/claude.js";
+export { OpenAICompatibleProvider } from "./providers/openai-compatible.js";
+export type { OpenAICompatibleConfig } from "./providers/openai-compatible.js";
 export { MockProvider } from "./providers/mock.js";
 export type { MockCall } from "./providers/mock.js";
 export { createProvider } from "./factory.js";

@@ -25,26 +25,22 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
   }
 
   // Create LLM provider
-  const config = session.config as { llmProvider: string; llmModel: string };
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY not configured");
-  }
+  const sessionConfig = session.config as { llmProvider: string; llmModel: string };
+  const { loadConfig } = await import("../config.js");
+  const appConfig = loadConfig();
 
-  const llmProvider = createProvider({
-    provider: config.llmProvider as "claude" | "mock",
-    apiKey,
-  });
+  const llmProvider = createProvider(appConfig.llmProvider);
 
   const input = session.input as { originalText: string; language: "zh" | "en" };
 
   // Create workflow controller
+  const model = sessionConfig.llmModel || process.env.OPENAI_COMPATIBLE_MODEL || "claude-sonnet-4-20250514";
   const controller = createWorkflowController(
     sessionId,
     input.originalText,
     input.language,
     llmProvider,
-    config.llmModel
+    model
   );
 
   // Handle workflow completion

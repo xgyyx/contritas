@@ -26,8 +26,8 @@ researchRouter.post("/", async (c) => {
       language: language ?? "zh",
     },
     config: {
-      llmProvider: config?.llmProvider ?? "claude",
-      llmModel: config?.llmModel ?? "claude-sonnet-4-20250514",
+      llmProvider: config?.llmProvider ?? (process.env.LLM_PROVIDER || "claude"),
+      llmModel: config?.llmModel ?? (process.env.OPENAI_COMPATIBLE_MODEL || "claude-sonnet-4-20250514"),
       searchProvider: config?.searchProvider,
     },
   });

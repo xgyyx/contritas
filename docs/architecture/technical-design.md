@@ -255,12 +255,26 @@ export interface TokenUsage {
 
 ### 4.3 Provider 实现
 
-| Provider | SDK                     | 用途                                |
-| -------- | ----------------------- | ----------------------------------- |
-| Claude   | `@anthropic-ai/sdk`     | 深度推理（Phase 1/4/5）、结构化输出 |
-| OpenAI   | `openai`                | 通用推理、JSON Mode                 |
-| DeepSeek | OpenAI 兼容 API         | 高频低成本提取（Phase 3）           |
-| Gemini   | `@google/generative-ai` | 长上下文场景                        |
+| Provider            | SDK                 | 状态   | 用途                                          |
+| ------------------- | ------------------- | ------ | --------------------------------------------- |
+| Claude              | `@anthropic-ai/sdk` | ✅ 已实现 | 深度推理（Phase 1/4/5）、结构化输出；支持自定义 baseURL |
+| OpenAI Compatible   | `openai`            | ✅ 已实现 | 兼容 OpenAI 格式的任意端点（one-api/litellm/ollama/vLLM/DeepSeek） |
+| Mock                | 内置                | ✅ 已实现 | 测试用途                                      |
+
+**配置方式（环境变量）：**
+
+```bash
+# 方式 A：Anthropic 官方或 Anthropic 协议代理
+LLM_PROVIDER=claude
+ANTHROPIC_API_KEY=sk-ant-xxx
+ANTHROPIC_BASE_URL=https://your-proxy.com   # 可选，留空走官方
+
+# 方式 B：OpenAI Compatible 端点
+LLM_PROVIDER=openai-compatible
+OPENAI_COMPATIBLE_API_KEY=sk-xxx
+OPENAI_COMPATIBLE_BASE_URL=https://your-proxy.com/v1
+OPENAI_COMPATIBLE_MODEL=gpt-4o
+```
 
 ### 4.4 Model Router
 
@@ -1093,12 +1107,12 @@ contritas/
 
 ## 十四、实施路线建议
 
-### Phase 1：核心骨架（2 周）
+### Phase 1：核心骨架（2 周）✅ 已完成
 
 - Monorepo 搭建（pnpm + Turborepo）
 - Hono API + BullMQ Worker 基础
 - PostgreSQL + Drizzle schema
-- 单 LLM Provider（Claude）接入
+- 多 LLM Provider 接入（Claude + OpenAI Compatible + 自定义 baseURL）
 - Phase 0-2 实现（输入验证 → 假设拆解 → 规划）
 
 ### Phase 2：搜索引擎（2 周）
@@ -1125,9 +1139,9 @@ contritas/
 - 历史列表
 - 迭代/深挖交互
 
-### Phase 5：多模型与优化（1 周）
+### Phase 5：优化与扩展（1 周）
 
-- 多 LLM Provider 接入（OpenAI、DeepSeek）
-- Model Router 配置
-- 成本监控
+- Model Router 按 Phase 路由到不同模型
+- 成本监控与 Token 预算机制
 - 搜索结果缓存优化
+- 更多 Provider 扩展（如需）

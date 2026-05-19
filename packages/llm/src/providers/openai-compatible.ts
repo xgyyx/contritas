@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import type {
   LLMProvider,
   ModelInfo,
@@ -9,89 +9,99 @@ import type {
   TokenUsage,
 } from "../types.js";
 
-const CLAUDE_MODELS: ModelInfo[] = [
+export interface OpenAICompatibleConfig {
+  apiKey: string;
+  baseUrl: string;
+  models?: ModelInfo[];
+}
+
+const DEFAULT_MODELS: ModelInfo[] = [
   {
-    id: "claude-sonnet-4-20250514",
-    name: "Claude Sonnet 4",
-    contextWindow: 200000,
-    maxOutput: 16384,
-    costPerInputToken: 0.000003,
-    costPerOutputToken: 0.000015,
-  },
-  {
-    id: "claude-haiku-3-5-20241022",
-    name: "Claude 3.5 Haiku",
-    contextWindow: 200000,
-    maxOutput: 8192,
-    costPerInputToken: 0.0000008,
-    costPerOutputToken: 0.000004,
+    id: "default",
+    name: "OpenAI Compatible Model",
+    contextWindow: 128000,
+    maxOutput: 4096,
+    costPerInputToken: 0,
+    costPerOutputToken: 0,
   },
 ];
 
-export class ClaudeProvider implements LLMProvider {
-  readonly name = "claude";
-  readonly models = CLAUDE_MODELS;
-  private client: Anthropic;
+export class OpenAICompatibleProvider implements LLMProvider {
+  readonly name = "openai-compatible";
+  readonly models: ModelInfo[];
+  private client: OpenAI;
 
-  constructor(apiKey: string, baseUrl?: string) {
-    this.client = new Anthropic({
-      apiKey,
-      ...(baseUrl && { baseURL: baseUrl }),
+  constructor(config: OpenAICompatibleConfig) {
+    this.client = new OpenAI({
+      apiKey: config.apiKey,
+      baseURL: config.baseUrl,
     });
+    this.models = config.models ?? DEFAULT_MODELS;
   }
 
   async chat(params: ChatParams): Promise<ChatResponse> {
-    const messages = params.messages.map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    }));
+    const messages: OpenAI.ChatCompletionMessageParam[] = [];
 
-    const response = await this.client.messages.create({
+    if (params.systemPrompt) {
+      messages.push({ role: "system", content: params.systemPrompt });
+    }
+
+    for (const m of params.messages) {
+      messages.push({
+        role: m.role === "system" ? "user" : m.role,
+        content: m.content,
+      } as OpenAI.ChatCompletionMessageParam);
+    }
+
+    const response = await this.client.chat.completions.create({
       model: params.model,
-      max_tokens: params.maxTokens ?? 4096,
-      temperature: params.temperature,
-      system: params.systemPrompt,
       messages,
+      temperature: params.temperature,
+      max_tokens: params.maxTokens ?? 4096,
     });
 
-    const content = response.content
-      .filter((block) => block.type === "text")
-      .map((block) => block.text)
-      .join("");
+    const choice = response.choices[0];
+    const content = choice?.message?.content ?? "";
 
     const usage = this.calculateUsage(
       params.model,
-      response.usage.input_tokens,
-      response.usage.output_tokens
+      response.usage?.prompt_tokens ?? 0,
+      response.usage?.completion_tokens ?? 0
     );
 
     return {
       content,
       usage,
-      finishReason: response.stop_reason === "end_turn" ? "stop" : "length",
+      finishReason: choice?.finish_reason === "stop" ? "stop" : "length",
     };
   }
 
   async *chatStream(params: ChatParams): AsyncIterable<ChatChunk> {
-    const messages = params.messages.map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    }));
+    const messages: OpenAI.ChatCompletionMessageParam[] = [];
 
-    const stream = this.client.messages.stream({
+    if (params.systemPrompt) {
+      messages.push({ role: "system", content: params.systemPrompt });
+    }
+
+    for (const m of params.messages) {
+      messages.push({
+        role: m.role === "system" ? "user" : m.role,
+        content: m.content,
+      } as OpenAI.ChatCompletionMessageParam);
+    }
+
+    const stream = await this.client.chat.completions.create({
       model: params.model,
-      max_tokens: params.maxTokens ?? 4096,
-      temperature: params.temperature,
-      system: params.systemPrompt,
       messages,
+      temperature: params.temperature,
+      max_tokens: params.maxTokens ?? 4096,
+      stream: true,
     });
 
-    for await (const event of stream) {
-      if (
-        event.type === "content_block_delta" &&
-        event.delta.type === "text_delta"
-      ) {
-        yield { content: event.delta.text, done: false };
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content;
+      if (delta) {
+        yield { content: delta, done: false };
       }
     }
 
@@ -106,7 +116,6 @@ export class ClaudeProvider implements LLMProvider {
       "\n\nIMPORTANT: You must respond with valid JSON only. No markdown formatting, no code blocks, no extra text. Just the JSON object.",
     ].join("");
 
-    // Try up to 2 times
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await this.chat({
         model: params.model,
@@ -117,7 +126,6 @@ export class ClaudeProvider implements LLMProvider {
       });
 
       try {
-        // Strip potential markdown code blocks
         let jsonStr = response.content.trim();
         if (jsonStr.startsWith("```")) {
           jsonStr = jsonStr.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
@@ -132,7 +140,6 @@ export class ClaudeProvider implements LLMProvider {
             `Failed to parse structured output after 2 attempts: ${error instanceof Error ? error.message : String(error)}`
           );
         }
-        // On first failure, retry with explicit correction instruction
         params.messages = [
           ...params.messages,
           { role: "assistant", content: response.content },
@@ -145,7 +152,6 @@ export class ClaudeProvider implements LLMProvider {
       }
     }
 
-    // Unreachable, but TypeScript needs it
     throw new Error("Unreachable");
   }
 

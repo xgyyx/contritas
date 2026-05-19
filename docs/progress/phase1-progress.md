@@ -153,6 +153,32 @@ pnpm turbo test
 pnpm turbo typecheck
 ```
 
+## Phase 1 补充：多 LLM Provider 支持（2026-05-19）
+
+| 改动 | 状态 |
+| ---- | ---- |
+| ClaudeProvider 支持自定义 baseURL | ✅ 完成 |
+| 新增 OpenAICompatibleProvider（openai SDK） | ✅ 完成 |
+| factory.ts 支持 `openai-compatible` provider 类型 | ✅ 完成 |
+| config.ts 统一 LLM 配置加载（LLM_PROVIDER 环境变量切换） | ✅ 完成 |
+| research.job.ts 使用统一配置 | ✅ 完成 |
+| .env.example + turbo.json globalEnv 更新 | ✅ 完成 |
+
+### 使用方式
+
+```bash
+# 方式 A：Anthropic 官方/代理
+LLM_PROVIDER=claude
+ANTHROPIC_API_KEY=sk-ant-xxx
+ANTHROPIC_BASE_URL=https://your-proxy.com   # 可选
+
+# 方式 B：OpenAI Compatible 端点（one-api/litellm/ollama 等）
+LLM_PROVIDER=openai-compatible
+OPENAI_COMPATIBLE_API_KEY=sk-xxx
+OPENAI_COMPATIBLE_BASE_URL=https://your-proxy.com/v1
+OPENAI_COMPATIBLE_MODEL=gpt-4o
+```
+
 ## 下一步：Phase 2
 
 Phase 2 将实现：
