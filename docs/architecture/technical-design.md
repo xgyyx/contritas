@@ -138,7 +138,7 @@ type ProgressEvent =
 | 项        | 选择        | 理由                                                         |
 | --------- | ----------- | ------------------------------------------------------------ |
 | HTTP 框架 | Hono        | TypeScript-first、内置 SSE 支持、3x 快于 Express、跨 Runtime |
-| 运行时    | Node.js 20+ | 生态最成熟，后续可迁移 Bun                                   |
+| 运行时    | Node.js 22+ | 生态最成熟，后续可迁移 Bun                                   |
 | 任务队列  | BullMQ      | 可靠的长时任务、进度追踪、重试、子任务                       |
 | ORM       | Drizzle     | 零开销 SQL 生成、TS 推断、原生 JSONB/Array 支持              |
 | 校验      | Zod         | 前后端共享 Schema                                            |
@@ -146,15 +146,19 @@ type ProgressEvent =
 ### 3.2 API 设计
 
 ```
+# ✅ 已实现（Phase 1）
 POST   /api/research                    # 创建研究会话（返回 202 + sessionId）
 GET    /api/research/:id                # 获取会话状态
 GET    /api/research/:id/stream         # SSE 实时进度流
 POST   /api/research/:id/respond        # 用户回复追问（Phase 0）
+DELETE /api/research/:id                # 取消进行中的研究
+
+# 🔲 计划中（Phase 3）
 POST   /api/research/:id/iterate        # 请求迭代（深挖/追加维度）
 GET    /api/research/:id/report         # 获取最终报告
 GET    /api/research/:id/evidence       # 获取所有证据
-DELETE /api/research/:id                # 取消进行中的研究
 
+# 🔲 计划中（Phase 4）
 GET    /api/history                     # 历史列表（分页）
 PUT    /api/settings/llm                # 配置 LLM Provider
 PUT    /api/settings/search             # 配置搜索 Provider
@@ -884,23 +888,11 @@ export function useResearchStream(sessionId: string) {
 
 ### 10.1 本地开发
 
+当前 `docker-compose.yml` 仅启动基础设施（PostgreSQL + Redis），应用通过 `pnpm dev` 本地运行：
+
 ```yaml
-# docker-compose.yml
+# docker-compose.yml（当前状态）
 services:
-  web: # Next.js 前端 (port 3000)
-    build: ./apps/web
-    ports: ["3000:3000"]
-
-  api: # Hono 后端 (port 4000)
-    build: ./apps/api
-    ports: ["4000:4000"]
-    depends_on: [postgres, redis]
-
-  worker: # BullMQ Worker (同 api 代码，不同入口)
-    build: ./apps/api
-    command: node dist/worker.js
-    depends_on: [postgres, redis]
-
   postgres:
     image: postgres:16
     ports: ["5432:5432"]
@@ -912,6 +904,17 @@ services:
     image: redis:7-alpine
     ports: ["6379:6379"]
 ```
+
+> **目标状态**（Phase 4+ 完成后可选完整容器化）：
+>
+> ```yaml
+> services:
+>   web:      # Next.js 前端 (port 3000)
+>   api:      # Hono 后端 (port 4000)
+>   worker:   # BullMQ Worker
+>   postgres: # ...
+>   redis:    # ...
+> ```
 
 ### 10.2 生产部署
 
@@ -1021,9 +1024,8 @@ contritas/
 │   │       ├── router.ts                 # Phase → Model 路由
 │   │       ├── providers/
 │   │       │   ├── claude.ts
-│   │       │   ├── openai.ts
-│   │       │   ├── deepseek.ts
-│   │       │   └── gemini.ts
+│   │       │   ├── openai-compatible.ts
+│   │       │   └── mock.ts
 │   │       └── prompts/                  # 各 Phase 系统提示词
 │   │           ├── phase0-validate.ts
 │   │           ├── phase1-decompose.ts
@@ -1093,7 +1095,57 @@ contritas/
 
 ---
 
-## 十三、技术风险与应对
+## 十三、安全性与运维设计
+
+### 13.1 认证与授权
+
+| 阶段 | 方案 | 说明 |
+| ---- | ---- | ---- |
+| Phase 1-3（当前） | 无认证（单用户本地部署） | 开发阶段仅本地使用 |
+| Phase 4+（上线前） | API Key / JWT | 需在 Hono 中间件层实现 |
+
+上线前必须实现：
+- API 请求认证（Bearer Token / API Key）
+- Session 所有权校验（用户只能操作自己的研究会话）
+- SSE 连接鉴权（订阅流时校验 session 归属）
+
+### 13.2 输入限制与频率控制
+
+| 限制项 | 阈值 | 说明 |
+| ------ | ---- | ---- |
+| 命题输入最大长度 | 2000 字符 | 超长输入会导致 Token 浪费 |
+| 单用户并发研究数 | 3 | 防止资源占用过多 |
+| 创建研究频率 | 10 次/小时/用户 | 防止滥用 |
+| SSE 连接数 | 5/用户 | 防止连接耗尽 |
+
+### 13.3 成本保护
+
+- **Token 预算机制**：每个研究会话设置 Token 上限（低复杂度 50K、中 150K、高 300K），超过预算时进入降级模式（跳过非必要的 LLM 调用）
+- **搜索调用上限**：已实现（150 次/会话），通过 `searchCallsUsed` 字段追踪
+- **成本仪表盘**：记录每次 LLM 调用的 `estimatedCostUSD`，按会话汇总，提供 `/api/stats/cost` 接口（Phase 5）
+
+### 13.4 数据生命周期
+
+| 数据 | 保留策略 | 清理方式 |
+| ---- | -------- | -------- |
+| 已完成的研究会话 | 90 天 | 定时任务 soft delete → 30 天后硬删除 |
+| 失败/取消的会话 | 7 天 | 定时任务硬删除 |
+| Redis 事件流 | 7 天 | Redis TTL 自动过期 |
+| BullMQ 已完成作业 | 7 天 | `removeOnComplete` 配置 |
+| 搜索结果缓存 | 24 小时 | Redis TTL |
+| LLM 响应缓存 | 7 天 | Redis TTL |
+
+### 13.5 幂等性设计
+
+Worker 崩溃恢复时需保证不重复执行 LLM 调用：
+- 每个 Phase 完成后将结果持久化到 `research_sessions.phases` (JSONB)
+- Worker 恢复时检查 phases 数组，已完成的 Phase 直接跳过
+- Phase 3 各维度独立持久化到 `dimensions` 表，仅重做 `status = 'pending' | 'searching'` 的维度
+- LLM 调用结果写入前检查目标数据是否已存在（基于 sessionId + phase + dimensionId 唯一性）
+
+---
+
+## 十四、技术风险与应对
 
 | 风险              | 影响                               | 应对                                                                      |
 | ----------------- | ---------------------------------- | ------------------------------------------------------------------------- |
@@ -1105,7 +1157,7 @@ contritas/
 
 ---
 
-## 十四、实施路线建议
+## 十五、实施路线建议
 
 ### Phase 1：核心骨架（2 周）✅ 已完成
 
