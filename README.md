@@ -28,8 +28,8 @@ Contritas 是一个**结构化尽职调查 Agent**。它接收用户提出的决
 | 任务队列 | BullMQ + Redis |
 | 数据库 | PostgreSQL + Drizzle ORM |
 | LLM | Claude (主力), 支持多模型路由 |
-| 搜索 | Tavily / Jina Reader (Phase 2) |
-| 前端 | Next.js 14 (Phase 4) |
+| 搜索 | Tavily / Jina Reader |
+| 前端 | Next.js 14 + shadcn/ui + Tailwind CSS |
 
 ## 项目结构
 
@@ -37,7 +37,7 @@ Contritas 是一个**结构化尽职调查 Agent**。它接收用户提出的决
 contritas/
 ├── apps/
 │   ├── api/              # Hono API + BullMQ Worker
-│   └── web/              # Next.js 前端 (Phase 4)
+│   └── web/              # Next.js 前端
 ├── packages/
 │   ├── shared/           # 共享类型、Zod schemas、工具函数
 │   ├── llm/              # LLM 抽象层 (providers + prompts)
@@ -72,11 +72,14 @@ cp .env.example .env
 # 4. 推送数据库 schema
 cd apps/api && pnpm db:push
 
-# 5. 启动 API 服务器
-pnpm dev
+# 5. 启动前端（port 3000）
+cd apps/web && pnpm dev
 
-# 6. 启动 Worker（另一个终端）
-pnpm worker
+# 6. 启动 API 服务器（port 4000，另一个终端）
+cd apps/api && pnpm dev
+
+# 7. 启动 Worker（另一个终端）
+cd apps/api && pnpm worker
 ```
 
 ### 运行测试
@@ -106,8 +109,8 @@ Phase 5: 综合报告 → 生成结构化尽调报告
 
 - [x] Phase 1: 核心骨架搭建 (Monorepo + DB + LLM + Workflow + API)
 - [x] Phase 2: 搜索能力接入 (Tavily + Jina Reader + Search Orchestrator)
-- [ ] Phase 3: 完整研究流程 (交叉验证 + 报告综合)
-- [ ] Phase 4: Web 前端 (Next.js + 实时进度展示)
+- [x] Phase 3: 完整研究流程 (交叉验证 + 报告综合 + 评分 + 自检)
+- [x] Phase 4: Web 前端 (Next.js + SSE 实时进度 + 报告查看 + 迭代交互)
 - [ ] Phase 5: 优化与上线
 
 ## 文档
