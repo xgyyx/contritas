@@ -8,7 +8,7 @@ pnpm monorepo + Turborepo，4 个 package + 2 个 app：
 
 ```
 apps/api          — Hono HTTP 服务 (port 4000) + BullMQ Worker
-apps/web          — Next.js 前端（Phase 4 待实现）
+apps/web          — Next.js 14 前端 (port 3000)
 packages/shared   — 共享类型、Zod schema、工具函数（@contritas/shared）
 packages/llm      — LLM Provider 抽象层 + Prompt（@contritas/llm）
 packages/search   — 搜索/内容提取 Provider + 编排器（@contritas/search）
@@ -29,7 +29,10 @@ pnpm install
 # 推送数据库 schema
 cd apps/api && pnpm db:push
 
-# 启动 API 服务器
+# 启动前端（port 3000）
+cd apps/web && pnpm dev
+
+# 启动 API 服务器（port 4000）
 cd apps/api && pnpm dev
 
 # 启动 Worker（另一个终端）
@@ -57,11 +60,13 @@ cd apps/api && pnpm db:push       # 推送到 DB
 - **LLM**: Claude (主力) + OpenAI Compatible（通过 LLM_PROVIDER 环境变量切换）
 - **搜索**: Tavily (主) + Serper (备)
 - **内容提取**: Jina Reader → Firecrawl → Web Archive（降级链）
-- **前端**: Next.js 14 + shadcn/ui + Zustand（Phase 4 待实现）
+- **前端**: Next.js 14 + shadcn/ui + Tailwind CSS + Zustand + react-markdown
 
 ## 环境变量
 
 必需：`DATABASE_URL`, `REDIS_URL`, `LLM_PROVIDER`, `ANTHROPIC_API_KEY`（或 `OPENAI_COMPATIBLE_*`），`TAVILY_API_KEY`
+
+前端：`NEXT_PUBLIC_API_URL`（默认 `http://localhost:4000`）
 
 可选：`ANTHROPIC_BASE_URL`, `SERPER_API_KEY`, `JINA_API_KEY`, `FIRECRAWL_API_KEY`
 
@@ -105,7 +110,7 @@ Schema 定义：`apps/api/src/drizzle/schema.ts`（Drizzle 格式，以代码为
 - Phase 1 核心骨架 ✅
 - Phase 2 搜索引擎 ✅
 - Phase 3 分析与报告 ✅（交叉验证 + 报告综合 + 评分 + 自检）
-- Phase 4 前端 — 待开始
+- Phase 4 前端 ✅（Next.js + SSE 实时 + 报告查看 + 历史 + 迭代交互）
 - Phase 5 优化与扩展 — 待开始
 
 详见 `docs/progress/roadmap.md`。

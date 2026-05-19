@@ -1,0 +1,46 @@
+export type {
+  SessionStatus,
+  PhaseId,
+  PhaseState,
+  ComplexityLevel,
+  TokenUsage,
+  AssumptionType,
+  ImportanceLevel,
+  Verdict,
+  EvidenceStrength,
+  Confidence,
+  SourceType,
+  Credibility,
+  Relationship,
+  OverallVerdict,
+  ContradictionReason,
+  Language,
+  ResearchSession,
+  Assumption,
+  Dimension,
+  Evidence,
+  CrossValidation,
+  Report,
+} from "@contritas/shared";
+
+export type {
+  CreateResearchRequest,
+  CreateResearchResponse,
+  SessionStatusResponse,
+  UserRespondRequest,
+  CancelResearchResponse,
+  IterateResearchRequest,
+} from "@contritas/shared";
+
+export type {
+  ProgressEvent,
+  PhaseChangeEvent,
+  DimensionUpdateEvent,
+  SearchExecutedEvent,
+  EvidenceAddedEvent,
+  ErrorEvent,
+  EtaUpdateEvent,
+  ReportReadyEvent,
+  ClarificationEvent,
+  ValidationCompleteEvent,
+} from "@contritas/shared";

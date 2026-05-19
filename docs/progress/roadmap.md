@@ -11,7 +11,7 @@
 | Phase 1 | 核心骨架       | ✅ 已完成 | [phase1-progress.md](./phase1-progress.md) |
 | Phase 2 | 搜索引擎       | ✅ 已完成 | [phase2-progress.md](./phase2-progress.md) |
 | Phase 3 | 分析与报告     | ✅ 已完成 | [phase3-progress.md](./phase3-progress.md) |
-| Phase 4 | 前端           | 🔲 待开始 | —                                       |
+| Phase 4 | 前端           | ✅ 已完成 | [phase4-progress.md](./phase4-progress.md) |
 | Phase 5 | 优化与扩展     | 🔲 待开始 | —                                       |
 
 ---
@@ -44,13 +44,13 @@
 - 自检与回退逻辑 ✅
 - 3 个新 API 端点：`/iterate`、`/report`、`/evidence` ✅
 
-### Phase 4：前端
+### Phase 4：前端 ✅
 
-- Next.js 应用搭建
-- 输入页面 + 进度面板
-- 报告查看器（Markdown 渲染 + 目录导航）
-- 历史列表
-- 迭代/深挖交互
+- Next.js 14 App Router 应用搭建 ✅
+- 输入页面 + 实时进度面板（SSE 驱动）✅
+- 报告查看器（react-markdown + remark-gfm + TOC 导航）✅
+- 历史列表（localStorage 持久化）✅
+- 迭代/深挖交互 ✅
 
 ### Phase 5：优化与扩展
 
