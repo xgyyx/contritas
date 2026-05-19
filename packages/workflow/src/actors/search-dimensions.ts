@@ -45,8 +45,22 @@ export const searchDimensions = fromPromise(
     const allEvidence: EvidenceData[] = [];
     const dimensionResults: RetrievalResult["dimensionResults"] = [];
 
-    const dimensionInputs: DimensionSearchInput[] = context.dimensions.map((dim, idx) => ({
-      dimensionId: generateId(),
+    // If targetedDimensions is set (self-check retry), only re-search those dimensions
+    const dimensionsToSearch = context.targetedDimensions && context.targetedDimensions.length > 0
+      ? context.dimensions.filter((_, idx) => {
+          // Match by dimension ID from evidence (generated during first search)
+          const dimIds = new Set(context.targetedDimensions);
+          const existingDimId = context.evidence.find((e) =>
+            context.dimensions[idx] && e.dimensionId
+          )?.dimensionId;
+          return existingDimId ? dimIds.has(existingDimId) : true;
+        })
+      : context.dimensions;
+
+    const dimensionInputs: DimensionSearchInput[] = dimensionsToSearch.map((dim, idx) => ({
+      dimensionId: context.targetedDimensions
+        ? (context.targetedDimensions[idx] ?? generateId())
+        : generateId(),
       sessionId: context.sessionId,
       name: dim.name,
       coreQuestion: dim.coreQuestion,

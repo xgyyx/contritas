@@ -80,5 +80,5 @@ Model Router 允许按 Phase 路由到不同模型，配置结构：
 | `phase2-plan.ts`            | Phase 2    | 研究规划       |
 | `phase3-extract.ts`         | Phase 3    | 证据评估       |
 | `phase3-refine-keywords.ts` | Phase 3    | 关键词精炼     |
-| `phase4-validate.ts`        | Phase 4    | 交叉验证（待） |
-| `phase5-synthesize.ts`      | Phase 5    | 报告综合（待） |
+| `phase4-cross-validate.ts`  | Phase 4    | 交叉验证       |
+| `phase5-synthesize.ts`      | Phase 5    | 报告综合       |

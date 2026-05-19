@@ -3,6 +3,10 @@ import { getRedis } from "./redis.js";
 
 export interface ResearchJobData {
   sessionId: string;
+  parentSessionId?: string;
+  iterationType?: "deep_dive" | "add_dimension";
+  target?: string;
+  details?: string;
 }
 
 let researchQueue: Queue<ResearchJobData> | null = null;

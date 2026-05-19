@@ -55,11 +55,13 @@ function createTestContext(): ResearchContext {
     assumptions: [],
     dimensions: [],
     evidence: [],
+    crossValidations: [],
     phases: [],
     currentPhase: "inputValidation",
     clarificationHistory: [],
     tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUSD: 0 },
     searchCallsUsed: 0,
+    selfCheckRetries: 0,
   };
 }
 

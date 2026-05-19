@@ -17,3 +17,7 @@ export { PHASE3_EVIDENCE_EVAL_SYSTEM_PROMPT, phase3EvidenceEvalSchema } from "./
 export type { Phase3EvidenceEvalOutput } from "./prompts/phase3-extract.js";
 export { PHASE3_KEYWORD_REFINE_SYSTEM_PROMPT, phase3KeywordRefineSchema } from "./prompts/phase3-refine-keywords.js";
 export type { Phase3KeywordRefineOutput } from "./prompts/phase3-refine-keywords.js";
+export { PHASE4_SYSTEM_PROMPT, phase4OutputSchema } from "./prompts/phase4-cross-validate.js";
+export type { Phase4Output } from "./prompts/phase4-cross-validate.js";
+export { PHASE5_SYSTEM_PROMPT, phase5OutputSchema } from "./prompts/phase5-synthesize.js";
+export type { Phase5Output } from "./prompts/phase5-synthesize.js";

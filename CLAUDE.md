@@ -74,8 +74,8 @@ Phase 0: 输入验证  → packages/workflow/src/actors/validate-input.ts
 Phase 1: 假设拆解  → packages/workflow/src/actors/decompose.ts
 Phase 2: 研究规划  → packages/workflow/src/actors/plan.ts
 Phase 3: 多源检索  → packages/workflow/src/actors/search-dimensions.ts + packages/search/
-Phase 4: 交叉验证  → 待实现
-Phase 5: 报告综合  → 待实现
+Phase 4: 交叉验证  → packages/workflow/src/actors/cross-validate.ts
+Phase 5: 报告综合  → packages/workflow/src/actors/synthesize-report.ts + packages/workflow/src/utils/self-check.ts
 ```
 
 状态机定义：`packages/workflow/src/machine.ts`
@@ -92,7 +92,10 @@ Schema 定义：`apps/api/src/drizzle/schema.ts`（Drizzle 格式，以代码为
 - `POST /api/research` — 创建研究会话（返回 202）
 - `GET /api/research/:id` — 获取会话状态
 - `GET /api/research/:id/stream` — SSE 实时进度
+- `GET /api/research/:id/report` — 获取生成的报告
+- `GET /api/research/:id/evidence` — 获取所有证据
 - `POST /api/research/:id/respond` — 用户回复追问
+- `POST /api/research/:id/iterate` — 迭代研究（深挖/新增维度）
 - `DELETE /api/research/:id` — 取消研究
 
 路由定义：`apps/api/src/routes/research.ts`
@@ -101,7 +104,7 @@ Schema 定义：`apps/api/src/drizzle/schema.ts`（Drizzle 格式，以代码为
 
 - Phase 1 核心骨架 ✅
 - Phase 2 搜索引擎 ✅
-- Phase 3 分析与报告 — 待开始（交叉验证 + 报告综合 + 评分 + 自检）
+- Phase 3 分析与报告 ✅（交叉验证 + 报告综合 + 评分 + 自检）
 - Phase 4 前端 — 待开始
 - Phase 5 优化与扩展 — 待开始
 

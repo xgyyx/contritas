@@ -1,15 +1,20 @@
 import { setup, assign, type AnyEventObject } from "xstate";
+import { MAX_SELF_CHECK_RETRIES } from "@contritas/shared";
 import type {
   ResearchContext,
   ResearchEvent,
   WorkflowDeps,
   ValidateInputResult,
   RetrievalResult,
+  CrossValidationResult,
+  SynthesisResult,
 } from "./types.js";
 import { validateInput } from "./actors/validate-input.js";
 import { decompose } from "./actors/decompose.js";
 import { plan } from "./actors/plan.js";
 import { searchDimensions } from "./actors/search-dimensions.js";
+import { crossValidate } from "./actors/cross-validate.js";
+import { synthesizeReport } from "./actors/synthesize-report.js";
 
 export function createResearchMachine(deps: WorkflowDeps) {
   return setup({
@@ -23,6 +28,8 @@ export function createResearchMachine(deps: WorkflowDeps) {
       decompose,
       plan,
       searchDimensions,
+      crossValidate,
+      synthesizeReport,
     },
     guards: {
       inputValid: ({ event }: { event: AnyEventObject }) => {
@@ -220,11 +227,22 @@ export function createResearchMachine(deps: WorkflowDeps) {
           src: "searchDimensions",
           input: ({ context }) => ({ context, deps }),
           onDone: {
-            target: "validationPending",
+            target: "validation",
             actions: [
               assign({
-                evidence: ({ event }) => (event.output as RetrievalResult).evidence,
-                searchCallsUsed: ({ event }) => (event.output as RetrievalResult).searchCallsUsed,
+                evidence: ({ context, event }) => {
+                  const newEvidence = (event.output as RetrievalResult).evidence;
+                  // On retry, merge with existing evidence (avoid duplicates by URL)
+                  if (context.selfCheckRetries > 0) {
+                    const existingUrls = new Set(context.evidence.map((e) => e.url));
+                    const unique = newEvidence.filter((e) => !existingUrls.has(e.url));
+                    return [...context.evidence, ...unique];
+                  }
+                  return newEvidence;
+                },
+                searchCallsUsed: ({ context, event }) =>
+                  context.searchCallsUsed + (event.output as RetrievalResult).searchCallsUsed,
+                targetedDimensions: () => undefined,
                 phases: ({ context }) => [
                   ...context.phases.filter((p) => p.id !== "retrieval"),
                   { id: "retrieval" as const, status: "completed" as const, completedAt: new Date().toISOString() },
@@ -244,9 +262,125 @@ export function createResearchMachine(deps: WorkflowDeps) {
         },
       },
 
-      // Stub: Phase 4+ not yet implemented
-      validationPending: {
-        type: "final",
+      // Phase 4: Cross-Validation
+      validation: {
+        entry: [
+          assign({ currentPhase: () => "validation" as const }),
+          () => { deps.emitEvent({ type: "phase_change", phase: "validation", status: "started" }); },
+        ],
+        invoke: {
+          src: "crossValidate",
+          input: ({ context }) => ({ context, deps }),
+          onDone: {
+            target: "synthesis",
+            actions: [
+              assign({
+                crossValidations: ({ event }) => (event.output as CrossValidationResult).crossValidations,
+                tokenUsage: ({ context, event }) => {
+                  const usage = (event.output as CrossValidationResult).usage;
+                  return {
+                    inputTokens: context.tokenUsage.inputTokens + usage.inputTokens,
+                    outputTokens: context.tokenUsage.outputTokens + usage.outputTokens,
+                    totalTokens: context.tokenUsage.totalTokens + usage.totalTokens,
+                    estimatedCostUSD: context.tokenUsage.estimatedCostUSD + usage.estimatedCostUSD,
+                  };
+                },
+                phases: ({ context }) => [
+                  ...context.phases.filter((p) => p.id !== "validation"),
+                  { id: "validation" as const, status: "completed" as const, completedAt: new Date().toISOString() },
+                ],
+              }),
+              ({ event }) => {
+                const result = event.output as CrossValidationResult;
+                const contradictions = result.crossValidations.filter((cv) => !cv.consistent).length;
+                deps.emitEvent({ type: "validation_complete", contradictionsFound: contradictions });
+              },
+              () => { deps.emitEvent({ type: "phase_change", phase: "validation", status: "completed" }); },
+              ({ context }) => { deps.persistState(context); },
+            ],
+          },
+          onError: {
+            target: "failed",
+            actions: [
+              assign({ error: ({ event }) => String(event.error) }),
+              () => { deps.emitEvent({ type: "error", message: "Cross-validation failed", recoverable: false }); },
+            ],
+          },
+        },
+      },
+
+      // Phase 5: Synthesis & Report
+      synthesis: {
+        entry: [
+          assign({ currentPhase: () => "synthesis" as const }),
+          () => { deps.emitEvent({ type: "phase_change", phase: "synthesis", status: "started" }); },
+        ],
+        invoke: {
+          src: "synthesizeReport",
+          input: ({ context }) => ({ context, deps }),
+          onDone: [
+            {
+              // Self-check failed and can retry — go back to retrieval for targeted re-search
+              guard: ({ event, context }) => {
+                const result = event.output as SynthesisResult;
+                return !result.selfCheck.passed && context.selfCheckRetries < MAX_SELF_CHECK_RETRIES;
+              },
+              target: "retrieval",
+              actions: [
+                assign({
+                  selfCheckRetries: ({ context }) => context.selfCheckRetries + 1,
+                  targetedDimensions: ({ event }) => {
+                    const result = event.output as SynthesisResult;
+                    return result.selfCheck.failedChecks
+                      .filter((f) => f.dimensionId)
+                      .map((f) => f.dimensionId!);
+                  },
+                  tokenUsage: ({ context, event }) => {
+                    const usage = (event.output as SynthesisResult).usage;
+                    return {
+                      inputTokens: context.tokenUsage.inputTokens + usage.inputTokens,
+                      outputTokens: context.tokenUsage.outputTokens + usage.outputTokens,
+                      totalTokens: context.tokenUsage.totalTokens + usage.totalTokens,
+                      estimatedCostUSD: context.tokenUsage.estimatedCostUSD + usage.estimatedCostUSD,
+                    };
+                  },
+                }),
+                () => { deps.emitEvent({ type: "error", message: "Self-check failed, retrying with additional evidence", recoverable: true }); },
+              ],
+            },
+            {
+              // Self-check passed OR no retries left — complete
+              target: "completed",
+              actions: [
+                assign({
+                  report: ({ event }) => (event.output as SynthesisResult).report,
+                  tokenUsage: ({ context, event }) => {
+                    const usage = (event.output as SynthesisResult).usage;
+                    return {
+                      inputTokens: context.tokenUsage.inputTokens + usage.inputTokens,
+                      outputTokens: context.tokenUsage.outputTokens + usage.outputTokens,
+                      totalTokens: context.tokenUsage.totalTokens + usage.totalTokens,
+                      estimatedCostUSD: context.tokenUsage.estimatedCostUSD + usage.estimatedCostUSD,
+                    };
+                  },
+                  phases: ({ context }) => [
+                    ...context.phases.filter((p) => p.id !== "synthesis"),
+                    { id: "synthesis" as const, status: "completed" as const, completedAt: new Date().toISOString() },
+                  ],
+                }),
+                () => { deps.emitEvent({ type: "phase_change", phase: "synthesis", status: "completed" }); },
+                ({ context }) => { deps.persistState(context); },
+              ],
+            },
+          ],
+          onError: {
+            target: "failed",
+            actions: [
+              assign({ error: ({ event }) => String(event.error) }),
+              () => { deps.emitEvent({ type: "error", message: "Report synthesis failed", recoverable: false }); },
+            ],
+          },
+        },
       },
 
       completed: {

@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import { db, schema } from "../drizzle/index.js";
 import type { SessionStatus } from "@contritas/shared";
 
@@ -92,4 +92,29 @@ export async function updateSearchCallsUsed(id: string, searchCallsUsed: number)
     .update(schema.researchSessions)
     .set({ searchCallsUsed, updatedAt: new Date() })
     .where(eq(schema.researchSessions.id, id));
+}
+
+export async function getReport(sessionId: string) {
+  const [report] = await db
+    .select()
+    .from(schema.reports)
+    .where(eq(schema.reports.sessionId, sessionId))
+    .orderBy(desc(schema.reports.version))
+    .limit(1);
+
+  return report ?? null;
+}
+
+export async function getEvidence(sessionId: string) {
+  return db
+    .select()
+    .from(schema.evidence)
+    .where(eq(schema.evidence.sessionId, sessionId));
+}
+
+export async function getCrossValidations(sessionId: string) {
+  return db
+    .select()
+    .from(schema.crossValidations)
+    .where(eq(schema.crossValidations.sessionId, sessionId));
 }

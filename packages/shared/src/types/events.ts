@@ -8,7 +8,8 @@ export type ProgressEvent =
   | ErrorEvent
   | EtaUpdateEvent
   | ReportReadyEvent
-  | ClarificationEvent;
+  | ClarificationEvent
+  | ValidationCompleteEvent;
 
 export interface PhaseChangeEvent {
   type: "phase_change";
@@ -64,5 +65,11 @@ export interface ClarificationEvent {
   type: "clarification";
   questions: string[];
   suggestedDirections?: string[];
+  timestamp: string;
+}
+
+export interface ValidationCompleteEvent {
+  type: "validation_complete";
+  contradictionsFound: number;
   timestamp: string;
 }

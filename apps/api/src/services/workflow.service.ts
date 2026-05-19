@@ -1,4 +1,5 @@
 import { createActor } from "xstate";
+import { eq } from "drizzle-orm";
 import { createResearchMachine, type ResearchContext, type WorkflowDeps, type WorkflowEmittedEvent, type SearchDeps } from "@contritas/workflow";
 import { generateId, type ProgressEvent } from "@contritas/shared";
 import {
@@ -41,6 +42,7 @@ export function createInitialContext(
     assumptions: [],
     dimensions: [],
     evidence: [],
+    crossValidations: [],
     phases: [],
     currentPhase: "inputValidation",
     clarificationHistory: [],
@@ -51,6 +53,7 @@ export function createInitialContext(
       estimatedCostUSD: 0,
     },
     searchCallsUsed: 0,
+    selfCheckRetries: 0,
   };
 }
 
@@ -157,6 +160,18 @@ export function createWorkflowDeps(
               credibility: event.credibility,
               timestamp: new Date().toISOString(),
             };
+          case "validation_complete":
+            return {
+              type: "validation_complete" as const,
+              contradictionsFound: event.contradictionsFound,
+              timestamp: new Date().toISOString(),
+            };
+          case "report_ready":
+            return {
+              type: "report_ready" as const,
+              reportId: event.reportId,
+              timestamp: new Date().toISOString(),
+            };
         }
       })();
 
@@ -232,6 +247,54 @@ export function createWorkflowDeps(
               })
               .onConflictDoNothing();
           }
+        }
+
+        // Persist cross-validations if they exist
+        if (context.crossValidations.length > 0) {
+          for (const cv of context.crossValidations) {
+            const id = generateId();
+            await db
+              .insert(schema.crossValidations)
+              .values({
+                id,
+                sessionId,
+                dimensionId: cv.dimensionId,
+                evidenceIds: cv.evidenceIds,
+                consistent: cv.consistent,
+                contradictionDescription: cv.contradictionDescription,
+                contradictionReason: cv.contradictionReason,
+              })
+              .onConflictDoNothing();
+          }
+
+          // Update dimension verdict/confidence from cross-validation results
+          for (const cv of context.crossValidations) {
+            await db
+              .update(schema.dimensions)
+              .set({
+                verdict: cv.verdict,
+                confidence: cv.confidence,
+              })
+              .where(eq(schema.dimensions.id, cv.dimensionId));
+          }
+        }
+
+        // Persist report if it exists
+        if (context.report) {
+          const reportId = generateId();
+          await db
+            .insert(schema.reports)
+            .values({
+              id: reportId,
+              sessionId,
+              version: 1,
+              markdownContent: context.report.markdownContent,
+              overallScore: context.report.overallScore,
+              overallVerdict: context.report.overallVerdict,
+              charCount: context.report.charCount,
+              sourceCount: context.report.sourceCount,
+            })
+            .onConflictDoNothing();
         }
 
         // Update search calls used

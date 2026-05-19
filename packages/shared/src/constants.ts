@@ -24,3 +24,14 @@ export const EVENT_TTL_SECONDS = 7 * 24 * 3600; // 7 days
 export const WORKER_LOCK_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 export const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
 export const CLARIFICATION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+// Phase 3: Cross-Validation & Synthesis
+export const MAX_SELF_CHECK_RETRIES = 1;
+export const MIN_EVIDENCE_FOR_REPORT = 3;
+export const MIN_HIGH_CREDIBILITY_FOR_REPORT = 1;
+
+export const REPORT_CHAR_TARGETS = {
+  low: { min: 3000, max: 4000 },
+  medium: { min: 5000, max: 7000 },
+  high: { min: 7000, max: 10000 },
+} as const;

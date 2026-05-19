@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { generateId, createResearchSchema, userRespondSchema, sessionIdSchema } from "@contritas/shared";
+import { generateId, createResearchSchema, userRespondSchema, sessionIdSchema, iterateResearchSchema } from "@contritas/shared";
 import { getResearchQueue } from "../lib/queue.js";
 import * as sessionService from "../services/session.service.js";
 import * as streamService from "../services/stream.service.js";
@@ -138,6 +138,90 @@ researchRouter.post("/:id/respond", async (c) => {
   await streamService.publishUserResponse(id, parsed.data.response);
 
   return c.json({ success: true });
+});
+
+// GET /api/research/:id/report — Get generated report
+researchRouter.get("/:id/report", async (c) => {
+  const id = c.req.param("id");
+  const parseResult = sessionIdSchema.safeParse(id);
+  if (!parseResult.success) {
+    return c.json({ error: "Invalid session ID" }, 400);
+  }
+
+  const session = await sessionService.getSession(id);
+  if (!session) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
+  const report = await sessionService.getReport(id);
+  if (!report) {
+    return c.json({ error: "Report not yet generated" }, 404);
+  }
+
+  return c.json({
+    id: report.id,
+    sessionId: report.sessionId,
+    version: report.version,
+    markdownContent: report.markdownContent,
+    overallScore: report.overallScore,
+    overallVerdict: report.overallVerdict,
+    charCount: report.charCount,
+    sourceCount: report.sourceCount,
+    generatedAt: report.generatedAt?.toISOString(),
+  });
+});
+
+// GET /api/research/:id/evidence — Get all evidence for a session
+researchRouter.get("/:id/evidence", async (c) => {
+  const id = c.req.param("id");
+  const parseResult = sessionIdSchema.safeParse(id);
+  if (!parseResult.success) {
+    return c.json({ error: "Invalid session ID" }, 400);
+  }
+
+  const session = await sessionService.getSession(id);
+  if (!session) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
+  const evidence = await sessionService.getEvidence(id);
+  return c.json({ evidence });
+});
+
+// POST /api/research/:id/iterate — Iterate on a completed research session
+researchRouter.post("/:id/iterate", async (c) => {
+  const id = c.req.param("id");
+  const parseResult = sessionIdSchema.safeParse(id);
+  if (!parseResult.success) {
+    return c.json({ error: "Invalid session ID" }, 400);
+  }
+
+  const body = await c.req.json();
+  const parsed = iterateResearchSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Validation failed", details: parsed.error.issues }, 400);
+  }
+
+  const session = await sessionService.getSession(id);
+  if (!session) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
+  if (session.status !== "completed") {
+    return c.json({ error: "Session must be completed before iterating" }, 409);
+  }
+
+  const childSessionId = generateId();
+  const queue = getResearchQueue();
+  await queue.add("research-iterate", {
+    sessionId: childSessionId,
+    parentSessionId: id,
+    iterationType: parsed.data.type,
+    target: parsed.data.target,
+    details: parsed.data.details,
+  }, { jobId: childSessionId });
+
+  return c.json({ sessionId: childSessionId, status: "in_progress" }, 202);
 });
 
 // DELETE /api/research/:id — Cancel research

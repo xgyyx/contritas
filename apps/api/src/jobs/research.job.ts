@@ -53,9 +53,7 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
         : result.finalState === "cancelled" ? "cancelled"
         : "completed";
 
-      // validationPending is the new terminal state (Phase 4 not yet implemented)
-      const status = result.finalState === "validationPending" ? "completed" : finalStatus;
-      await sessionService.updateSessionStatus(sessionId, status as "completed" | "failed" | "cancelled");
+      await sessionService.updateSessionStatus(sessionId, finalStatus as "completed" | "failed" | "cancelled");
       console.log(`[Worker] Session ${sessionId} finished with state: ${result.finalState}`);
       resolve();
     });

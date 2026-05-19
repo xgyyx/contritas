@@ -5,6 +5,10 @@ import type {
   ComplexityLevel,
   TokenUsage,
   Credibility,
+  Verdict,
+  Confidence,
+  ContradictionReason,
+  OverallVerdict,
 } from "@contritas/shared";
 import type { LLMProvider } from "@contritas/llm";
 import type { Phase0Output } from "@contritas/llm";
@@ -29,12 +33,16 @@ export interface ResearchContext {
   assumptions: AssumptionData[];
   dimensions: DimensionData[];
   evidence: EvidenceData[];
+  crossValidations: CrossValidationData[];
+  report?: ReportData;
   complexity?: ComplexityLevel;
   phases: PhaseState[];
   currentPhase: PhaseId;
   clarificationHistory: ClarificationEntry[];
   tokenUsage: TokenUsage;
   searchCallsUsed: number;
+  selfCheckRetries: number;
+  targetedDimensions?: string[];
   error?: string;
 }
 
@@ -119,7 +127,9 @@ export type WorkflowEmittedEvent =
   | { type: "error"; message: string; recoverable: boolean }
   | { type: "dimension_update"; dimensionId: string; sourcesFound: number; round: number }
   | { type: "search_executed"; query: string; language: Language; resultsCount: number }
-  | { type: "evidence_added"; dimensionId: string; source: string; credibility: Credibility };
+  | { type: "evidence_added"; dimensionId: string; source: string; credibility: Credibility }
+  | { type: "validation_complete"; contradictionsFound: number }
+  | { type: "report_ready"; reportId: string };
 
 // ══════════════════════════════════════════
 // Actor Input/Output
@@ -150,4 +160,52 @@ export interface RetrievalResult {
     sufficient: boolean;
     roundsUsed: number;
   }>;
+}
+
+// ══════════════════════════════════════════
+// Phase 4: Cross-Validation
+// ══════════════════════════════════════════
+
+export interface CrossValidationData {
+  dimensionId: string;
+  evidenceIds: string[];
+  consistent: boolean;
+  contradictionDescription?: string;
+  contradictionReason?: ContradictionReason;
+  verdict: Verdict;
+  confidence: Confidence;
+}
+
+export interface CrossValidationResult {
+  crossValidations: CrossValidationData[];
+  usage: TokenUsage;
+}
+
+// ══════════════════════════════════════════
+// Phase 5: Synthesis & Report
+// ══════════════════════════════════════════
+
+export interface ReportData {
+  markdownContent: string;
+  overallScore: string;
+  overallVerdict: OverallVerdict;
+  charCount: number;
+  sourceCount: number;
+}
+
+export interface SelfCheckFailure {
+  check: string;
+  dimensionId?: string;
+  reason: string;
+}
+
+export interface SelfCheckResult {
+  passed: boolean;
+  failedChecks: SelfCheckFailure[];
+}
+
+export interface SynthesisResult {
+  report: ReportData;
+  selfCheck: SelfCheckResult;
+  usage: TokenUsage;
 }
