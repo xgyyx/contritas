@@ -6,6 +6,7 @@
 
 **通过反证逼近真相的深度研究 Agent**——把你的判断当假设，而不是当结论。
 
+[![CI](https://github.com/xgyyx/contritas/actions/workflows/ci.yml/badge.svg)](https://github.com/xgyyx/contritas/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/Node-22%2B-339933?logo=node.js&logoColor=white)](#)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](#)

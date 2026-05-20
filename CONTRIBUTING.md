@@ -90,7 +90,7 @@ refactor(workflow): extract retry logic to shared utility
 
 ## Pull Request 流程
 
-1. 确保通过类型检查和测试：
+1. 提交前本地跑一遍：
    ```bash
    pnpm turbo typecheck
    pnpm turbo test
@@ -103,7 +103,20 @@ refactor(workflow): extract retry logic to shared utility
    - 测试方式
    - 截图（如涉及 UI 变更）
 
-4. 等待 Review 通过后合并
+4. 等待 CI 全绿 + Review 通过后合并
+
+## CI 自动检查
+
+每次 push 到 `main` 或开 PR，[GitHub Actions](https://github.com/xgyyx/contritas/actions/workflows/ci.yml) 会跑 `.github/workflows/ci.yml` 里定义的两个 job：
+
+| Job | 内容 | 失败的常见原因 |
+| --- | --- | --- |
+| `lint-test-build` | `pnpm install --frozen-lockfile` → `turbo typecheck` → `turbo test` → `turbo build` | 类型错误；vitest 失败；`pnpm-lock.yaml` 漂移 |
+| `docker-build` | 构建 `apps/api/Dockerfile` 与 `apps/web/Dockerfile`（不推送） | Dockerfile 改动后多阶段构建坏掉 |
+
+CI 用一组 dummy env（`API_AUTH_TOKEN=dummy-ci-token` 等）启动测试，所以本地能跑通 `pnpm turbo typecheck test build` 基本就能过 CI。如果 CI 挂了，去 Actions 页面点进 run 看具体 step 日志。
+
+> **注意**：改 `pnpm-lock.yaml`、`turbo.json`、`tsconfig.base.json` 或任意 `Dockerfile` 时，更容易踩到 CI 才暴露的问题——务必本地先跑一遍上面四步。
 
 ## 代码风格
 

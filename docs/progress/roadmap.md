@@ -148,7 +148,7 @@
 - [x] `apps/api/src/drizzle/index.ts` 默认值改为 fail-fast，禁止在 env 缺失时回落到 dev 凭据
 
 #### 6.9 DX 与工程化
-- [ ] 新增 CI（GitHub Actions）：PR 上跑 typecheck + test + 构建 + Docker build
+- [x] 新增 CI（GitHub Actions）：PR 上跑 typecheck + test + 构建 + Docker build（`.github/workflows/ci.yml`）
 - [ ] 引入 pre-commit hook（husky + lint-staged + prettier --write）
 - [ ] 全仓 ESLint config + 各 package 补 `lint` 脚本（让 `pnpm lint` 真的有用）
 - [ ] `tsconfig.base.json` 开启 `noUncheckedIndexedAccess`
