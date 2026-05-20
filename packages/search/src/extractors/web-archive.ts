@@ -1,5 +1,6 @@
 import type { ContentExtractor, ExtractedContent } from "../types.js";
 import { JinaExtractor } from "./jina.js";
+import { assertSafePublicUrl, UnsafeUrlError } from "../utils/url-safety.js";
 
 interface WaybackAvailabilityResponse {
   archived_snapshots: {
@@ -23,6 +24,22 @@ export class WebArchiveExtractor implements ContentExtractor {
   }
 
   async extract(url: string): Promise<ExtractedContent> {
+    try {
+      await assertSafePublicUrl(url);
+    } catch (err) {
+      if (err instanceof UnsafeUrlError) {
+        return {
+          url,
+          title: "",
+          content: "",
+          wordCount: 0,
+          success: false,
+          error: err.message,
+        };
+      }
+      throw err;
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 

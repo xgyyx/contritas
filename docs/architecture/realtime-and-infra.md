@@ -124,26 +124,31 @@ push to PR   → lint + typecheck + test → preview deploy
 
 ## 四、安全性与运维
 
-### 4.1 认证与授权
+### 4.1 认证与授权（Phase 6.1 已落地）
 
-| 阶段                  | 方案                         |
-| --------------------- | ---------------------------- |
-| Phase 1-5（当前）     | 无认证（单用户本地部署）     |
-| Phase 6（上线前）     | API Key / JWT                |
+当前为**单租户 Bearer Token** 模型，定位"内部工具 / 私有部署"：
 
-上线前必须实现：
-- API 请求认证（Bearer Token / API Key）
-- Session 所有权校验（用户只能操作自己的研究会话）
-- SSE 连接鉴权（订阅流时校验 session 归属）
+- 所有 `/api/research/*` 端点强制 `Authorization: Bearer <token>`；token 不在 `API_AUTH_TOKEN` 白名单 → `401`。
+- 每个 `research_sessions` 行写入 `owner_token_hash`；非 owner 访问 → `404`（不暴露存在性）。
+- SSE 端点同样校验：浏览器 EventSource 通过 `?token=` 查询参数传递；服务端取出后立即丢弃，避免日志泄漏。
+- 多用户 / OIDC / 自动轮换等高级方案不在 Phase 6 范围。
 
-### 4.2 输入限制与频率控制
+实现：`apps/api/src/middleware/auth.ts`、`apps/api/src/routes/research.ts`。
+策略详情：[docs/security.md](../security.md)。
 
-| 限制项             | 阈值            |
-| ------------------ | --------------- |
-| 命题输入最大长度   | 2000 字符       |
-| 单用户并发研究数   | 3               |
-| 创建研究频率       | 10 次/小时/用户 |
-| SSE 连接数         | 5/用户          |
+### 4.2 输入限制与频率控制（Phase 6.1 已落地）
+
+| 限制项                       | 阈值                          | 配置 env                        |
+| ---------------------------- | ----------------------------- | ------------------------------- |
+| `proposition` 长度           | 10–2000 字符 + 控制字符过滤   | 硬编码                          |
+| `userResponse` 长度          | 1–2000 字符 + 控制字符过滤    | 硬编码                          |
+| `iterate.details` 长度       | ≤ 1000 字符                   | 硬编码                          |
+| IP 全局请求限流              | 60 req/min                    | `RATE_LIMIT_IP_PER_MIN`         |
+| 会话创建（IP+token）         | 10 req/h                      | `RATE_LIMIT_CREATE_PER_HOUR`    |
+| 单会话搜索调用上限           | 150                           | 见 §4.3                         |
+| SSE 连接数（per 用户）       | 暂未限制                      | 后续考虑                        |
+
+实现：`apps/api/src/middleware/rate-limit.ts`、`packages/shared/src/utils/validation.ts`。
 
 ### 4.3 成本保护
 
@@ -161,3 +166,17 @@ push to PR   → lint + typecheck + test → preview deploy
 | BullMQ 已完成作业      | 7 天                                 |
 | 搜索结果缓存           | 24 小时 TTL                          |
 | LLM 响应缓存           | 7 天 TTL                             |
+
+### 4.5 CORS（Phase 6.1 已落地）
+
+- 仅允许 `WEB_ORIGIN`（逗号分隔 allowlist）中的 origin；其他 origin 不返回 ACAO 头。
+- `credentials: false`（鉴权走 Authorization 头，不用 cookie）。
+- 生产环境若未配置 `WEB_ORIGIN`，启动失败（dev 默认 `http://localhost:3000`）。
+
+### 4.6 内容安全（Phase 6.1 已落地）
+
+- **SSRF**：抓取 URL（Jina / Firecrawl / Wayback）调用前过 `assertSafePublicUrl`，拒绝非 `http(s)`、私网 IP、云元数据地址。
+- **Prompt Injection**：所有外部 / 用户文本以 `<external_content>` 围栏 + system prompt 安全条款进入 LLM。
+- **`ANTHROPIC_BASE_URL`**：非 `*.anthropic.com` 域名启动时打印 warn 日志，便于审计。
+
+完整策略：[docs/security.md](../security.md)。

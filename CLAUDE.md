@@ -113,9 +113,9 @@ Schema 定义：`apps/api/src/drizzle/schema.ts`（Drizzle 格式，以代码为
 - Phase 3 分析与报告 ✅（交叉验证 + 报告综合 + 评分 + 自检）
 - Phase 4 前端 ✅（Next.js + SSE 实时 + 报告查看 + 历史 + 迭代交互）
 - Phase 5 优化与扩展 ✅（ModelRouter 路由 + Token 预算 + 搜索缓存优化 + ETA 事件 + 迭代修复）
-- Phase 6 加固与生产就绪 🚧（安全鉴权 + LLM 可靠性 + 测试覆盖 + 可观测性 + 容器化 + 数据一致性）
+- Phase 6 加固与生产就绪 🚧（10 个子领域：6.1 安全鉴权 ✅ / 6.2 数据一致性 / 6.3 Worker 稳定性 / 6.4 SSE 可靠性 / 6.5 LLM 可靠性与成本 / 6.6 可观测性 / 6.7 测试覆盖 / 6.8 容器化加固（部分完成）/ 6.9 DX 工程化 / 6.10 文档同步）
 
-详见 `docs/progress/roadmap.md`。
+总体规划详见 `docs/progress/roadmap.md`，工单级执行手册详见 `docs/progress/phase6-progress.md`。
 
 ## 文档索引
 
@@ -129,7 +129,9 @@ Schema 定义：`apps/api/src/drizzle/schema.ts`（Drizzle 格式，以代码为
 - 数据模型：`docs/architecture/data-model.md`
 - 基础设施：`docs/architecture/realtime-and-infra.md`
 - Docker 部署：`docs/deployment/docker.md`
+- 安全策略（鉴权 / CORS / 限流 / SSRF / Prompt Injection）：`docs/security.md`
 - PRD 映射表：`docs/prd-mapping.md`
+- Phase 6 工单手册：`docs/progress/phase6-progress.md`
 
 ## 编码约定
 

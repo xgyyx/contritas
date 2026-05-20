@@ -13,6 +13,8 @@ export interface AppConfig {
   llmProvider: ProviderConfig;
   search: SearchConfig;
   port: number;
+  webOrigins: string[];
+  authTokens: string[];
 }
 
 export function loadConfig(): AppConfig {
@@ -28,6 +30,8 @@ export function loadConfig(): AppConfig {
 
   const llmProvider = loadLLMConfig();
   const search = loadSearchConfig();
+  const webOrigins = loadWebOrigins();
+  const authTokens = loadAuthTokens();
 
   return {
     databaseUrl,
@@ -35,7 +39,40 @@ export function loadConfig(): AppConfig {
     llmProvider,
     search,
     port: parseInt(process.env.PORT ?? "4000", 10),
+    webOrigins,
+    authTokens,
   };
+}
+
+function loadWebOrigins(): string[] {
+  const raw = process.env.WEB_ORIGIN;
+  if (!raw) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("WEB_ORIGIN environment variable is required in production");
+    }
+    return ["http://localhost:3000"];
+  }
+  return raw
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+}
+
+function loadAuthTokens(): string[] {
+  const raw = process.env.API_AUTH_TOKEN;
+  if (!raw) {
+    throw new Error(
+      "API_AUTH_TOKEN environment variable is required (comma-separated list of allowed tokens)"
+    );
+  }
+  const tokens = raw
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (tokens.length === 0) {
+    throw new Error("API_AUTH_TOKEN must contain at least one non-empty token");
+  }
+  return tokens;
 }
 
 function loadLLMConfig(): ProviderConfig {
@@ -47,10 +84,24 @@ function loadLLMConfig(): ProviderConfig {
       if (!apiKey) {
         throw new Error("ANTHROPIC_API_KEY is required when LLM_PROVIDER=claude");
       }
+      const baseUrl = process.env.ANTHROPIC_BASE_URL || undefined;
+      if (baseUrl) {
+        try {
+          const host = new URL(baseUrl).hostname;
+          if (!/(^|\.)anthropic\.com$/.test(host)) {
+            console.warn(
+              `[config] ANTHROPIC_BASE_URL points to non-official host '${host}'. ` +
+                `All Claude requests/responses will be proxied through it — ensure this is intentional.`
+            );
+          }
+        } catch {
+          console.warn(`[config] ANTHROPIC_BASE_URL is not a valid URL: ${baseUrl}`);
+        }
+      }
       return {
         provider: "claude",
         apiKey,
-        baseUrl: process.env.ANTHROPIC_BASE_URL || undefined,
+        baseUrl,
       };
     }
 

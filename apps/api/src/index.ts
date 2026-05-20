@@ -6,11 +6,26 @@ import { db } from "./drizzle/index.js";
 import { closeDb } from "./drizzle/index.js";
 import { getRedis, closeRedis } from "./lib/redis.js";
 import { sql } from "drizzle-orm";
+import { loadConfig } from "./config.js";
+
+const config = loadConfig();
 
 const app = new Hono();
 
-// Middleware
-app.use("*", cors());
+// CORS — explicit allowlist via WEB_ORIGIN
+app.use(
+  "*",
+  cors({
+    origin: (origin) => {
+      if (!origin) return config.webOrigins[0] ?? "";
+      return config.webOrigins.includes(origin) ? origin : "";
+    },
+    allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+    allowHeaders: ["Authorization", "Content-Type", "Last-Event-ID"],
+    credentials: false,
+    maxAge: 600,
+  })
+);
 
 // Health check — verifies DB and Redis connectivity
 app.get("/health", async (c) => {
@@ -51,9 +66,11 @@ app.onError((err, c) => {
 });
 
 // Start server
-const port = parseInt(process.env.PORT ?? "4000", 10);
+const port = config.port;
 
 console.log(`Contritas API server starting on port ${port}...`);
+console.log(`[config] CORS allowlist: ${config.webOrigins.join(", ")}`);
+console.log(`[config] Auth tokens configured: ${config.authTokens.length}`);
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`Server running at http://localhost:${info.port}`);

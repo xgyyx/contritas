@@ -7,6 +7,7 @@ import {
   EXTRACT_CONCURRENT_LIMIT,
   MAX_SEARCH_CALLS_PER_SESSION,
   DEFAULT_TOKEN_BUDGET_USD,
+  wrapExternalContent,
 } from "@contritas/shared";
 import { createProvider, type LLMProvider, ModelRouter, createDefaultRoutingConfig } from "@contritas/llm";
 import {
@@ -489,9 +490,10 @@ export async function createIterateContext(
     contextEvidence = [];
   }
 
-  // Append user-provided details to the proposition for additional context
+  // Append user-provided details to the proposition for additional context.
+  // `details` is user input — wrap in sentinel so downstream prompts cannot mistake it for instructions.
   const originalText = details
-    ? `${parentInput.originalText}\n\n[迭代补充说明] ${details}`
+    ? `${parentInput.originalText}\n\n[迭代补充说明]\n${wrapExternalContent(details, { kind: "iterate-details" })}`
     : parentInput.originalText;
 
   const context: ResearchContext = {

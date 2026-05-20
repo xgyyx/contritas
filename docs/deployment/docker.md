@@ -106,20 +106,29 @@ docker build -f apps/web/Dockerfile \
 | `DATABASE_URL` | api, worker | PostgreSQL 连接串 | `postgresql://postgres:pwd@postgres:5432/contritas` |
 | `REDIS_URL` | api, worker | Redis 连接串 | `redis://redis:6379` |
 | `LLM_PROVIDER` | api, worker | LLM 提供方 | `claude` 或 `openai-compatible` |
-| `ANTHROPIC_API_KEY` | api, worker | Anthropic API Key | `sk-ant-...` |
+| `ANTHROPIC_API_KEY` | api, worker | Anthropic API Key（当 LLM_PROVIDER=claude） | `sk-ant-...` |
+| `OPENAI_COMPATIBLE_API_KEY` + `OPENAI_COMPATIBLE_BASE_URL` | api, worker | OpenAI 兼容 endpoint | `sk-...` + `https://...` |
 | `TAVILY_API_KEY` | api, worker | Tavily 搜索 Key | `tvly-...` |
+| `API_AUTH_TOKEN` | api | Bearer Token 白名单（逗号分隔） — Phase 6.1 | `openssl rand -hex 32` |
+| `WEB_ORIGIN` | api | CORS allowlist（生产必填） — Phase 6.1 | `https://app.example.com` |
+| `NEXT_PUBLIC_API_TOKEN` | web (构建时) | 与 `API_AUTH_TOKEN` 之一一致 — Phase 6.1 | 同上 |
+| `POSTGRES_PASSWORD` | postgres | 数据库密码（**生产必填，禁用默认值**） | `openssl rand -hex 24` |
 
 ### 4.2 可选变量
 
 | 变量 | 服务 | 说明 | 默认值 |
 |------|------|------|--------|
 | `PORT` | api | HTTP 端口 | `4000` |
-| `ANTHROPIC_BASE_URL` | api, worker | 自定义 Anthropic 端点 | 官方 API |
+| `ANTHROPIC_BASE_URL` | api, worker | 自定义 Anthropic 端点（非 `*.anthropic.com` 触发 warn 日志） | 官方 API |
+| `OPENAI_COMPATIBLE_MODEL` | api, worker | 默认模型 ID | `gpt-4o` |
 | `SERPER_API_KEY` | api, worker | 备用搜索引擎 | 不启用 |
 | `JINA_API_KEY` | api, worker | Jina Reader 内容提取 | 免费 tier |
 | `FIRECRAWL_API_KEY` | api, worker | Firecrawl 内容提取 | 不启用 |
-| `POSTGRES_PASSWORD` | postgres | 数据库密码 | `prod_secret` |
+| `RATE_LIMIT_IP_PER_MIN` | api | IP 全局限流 | `60` |
+| `RATE_LIMIT_CREATE_PER_HOUR` | api | 会话创建限流（IP+token） | `10` |
 | `NEXT_PUBLIC_API_URL` | web (构建时) | 前端连接的 API 地址 | `http://localhost:4000` |
+
+> ⚠️ **`POSTGRES_PASSWORD` 当前在 `docker-compose.prod.yml` 仍有 `prod_secret` 默认值**，将在 Phase 6.8.4 改为 fail-fast。生产部署**务必**显式设置。
 
 ### 4.3 docker-compose.prod.yml 中的变量传递
 

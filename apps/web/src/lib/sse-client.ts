@@ -1,5 +1,5 @@
 import type { ProgressEvent } from "@/types";
-import { API_URL } from "./constants";
+import { API_URL, API_TOKEN } from "./constants";
 
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30000;
@@ -23,7 +23,8 @@ export function createSSEClient(sessionId: string, options: SSEClientOptions): S
 
   function connect() {
     intentionalClose = false;
-    const url = `${API_URL}/api/research/${sessionId}/stream`;
+    const tokenQS = API_TOKEN ? `?token=${encodeURIComponent(API_TOKEN)}` : "";
+    const url = `${API_URL}/api/research/${sessionId}/stream${tokenQS}`;
     eventSource = new EventSource(url);
 
     eventSource.onopen = () => {

@@ -9,6 +9,8 @@ import {
   MIN_SOURCES_PER_DIMENSION,
   MIN_HIGH_CREDIBILITY_SOURCES,
   SEARCH_CACHE_TTL_SECONDS,
+  wrapExternalContent,
+  EXTERNAL_CONTENT_SAFETY_CLAUSE,
 } from "@contritas/shared";
 import type {
   SearchOrchestratorConfig,
@@ -250,7 +252,8 @@ export class SearchOrchestrator {
       const contentSummaries = batch.map((c, idx) => {
         // Truncate content to ~2000 chars to fit in LLM context
         const truncated = c.content.length > 2000 ? c.content.slice(0, 2000) + "..." : c.content;
-        return `--- Content ${idx + 1} (URL: ${c.url}) ---\nTitle: ${c.title}\n${truncated}\n`;
+        const body = `Title: ${c.title}\n${truncated}`;
+        return `--- Content ${idx + 1} ---\n${wrapExternalContent(body, { kind: "web-page", source: c.url })}\n`;
       }).join("\n");
 
       const userMessage = `## Research Dimension
@@ -269,7 +272,7 @@ Evaluate each content piece. Respond with JSON.`;
           model: this.llmModel,
           messages: [{ role: "user", content: userMessage }],
           schema: phase3EvidenceEvalSchema,
-          systemPrompt: PHASE3_EVIDENCE_EVAL_SYSTEM_PROMPT,
+          systemPrompt: PHASE3_EVIDENCE_EVAL_SYSTEM_PROMPT + EXTERNAL_CONTENT_SAFETY_CLAUSE,
           temperature: 0.1,
         });
 
@@ -311,9 +314,10 @@ Evaluate each content piece. Respond with JSON.`;
     dimension: DimensionSearchInput,
     usedQueries: string[]
   ): Promise<{ zh: string[]; en: string[] }> {
-    const evidenceSummary = evidence.map((e) =>
-      `- [${e.credibility}] ${e.sourceName}: ${e.relationship} (${e.keyExcerpt.slice(0, 100)})`
-    ).join("\n");
+    const evidenceSummary = evidence.map((e) => {
+      const body = `[${e.credibility}] ${e.sourceName}: ${e.relationship}\nExcerpt: ${e.keyExcerpt.slice(0, 100)}`;
+      return `- ${wrapExternalContent(body, { kind: "evidence-summary", source: e.url })}`;
+    }).join("\n");
 
     const userMessage = `## Research Dimension
 Name: ${dimension.name}
@@ -333,7 +337,7 @@ Analyze gaps and suggest new keywords. Respond with JSON.`;
         model: this.llmModel,
         messages: [{ role: "user", content: userMessage }],
         schema: phase3KeywordRefineSchema,
-        systemPrompt: PHASE3_KEYWORD_REFINE_SYSTEM_PROMPT,
+        systemPrompt: PHASE3_KEYWORD_REFINE_SYSTEM_PROMPT + EXTERNAL_CONTENT_SAFETY_CLAUSE,
         temperature: 0.3,
       });
 

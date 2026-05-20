@@ -14,6 +14,7 @@ export interface CreateSessionParams {
     searchProvider?: string;
   };
   parentSessionId?: string;
+  ownerTokenHash?: string;
 }
 
 export async function createSession(params: CreateSessionParams) {
@@ -27,6 +28,7 @@ export async function createSession(params: CreateSessionParams) {
       phases: [],
       tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUSD: 0 },
       parentSessionId: params.parentSessionId,
+      ownerTokenHash: params.ownerTokenHash,
     })
     .returning();
 

@@ -24,6 +24,7 @@ export const researchSessions = pgTable(
     tokenUsage: jsonb("token_usage").notNull().default({}),
     searchCallsUsed: integer("search_calls_used").default(0),
     parentSessionId: text("parent_session_id"),
+    ownerTokenHash: text("owner_token_hash"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -31,6 +32,7 @@ export const researchSessions = pgTable(
   (table) => [
     index("idx_sessions_status").on(table.status),
     index("idx_sessions_created").on(table.createdAt),
+    index("idx_sessions_owner").on(table.ownerTokenHash),
   ]
 );
 

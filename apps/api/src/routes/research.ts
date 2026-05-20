@@ -1,14 +1,62 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
 import { generateId, createResearchSchema, userRespondSchema, sessionIdSchema, iterateResearchSchema } from "@contritas/shared";
 import { getResearchQueue } from "../lib/queue.js";
 import * as sessionService from "../services/session.service.js";
 import * as streamService from "../services/stream.service.js";
+import { authMiddleware } from "../middleware/auth.js";
+import { rateLimit, clientIp } from "../middleware/rate-limit.js";
 
 export const researchRouter = new Hono();
 
+const ipPerMin = parseInt(process.env.RATE_LIMIT_IP_PER_MIN ?? "60", 10);
+const createPerHour = parseInt(process.env.RATE_LIMIT_CREATE_PER_HOUR ?? "10", 10);
+
+// Auth applies to every research endpoint (SSE accepts ?token= since EventSource
+// cannot set custom headers).
+researchRouter.use("*", authMiddleware);
+
+// Per-IP global limit on all research endpoints.
+researchRouter.use(
+  "*",
+  rateLimit({
+    name: "ip",
+    windowSeconds: 60,
+    max: ipPerMin,
+    keyFor: (c) => clientIp(c),
+  })
+);
+
+// Stricter limit on session-creation endpoints (create + iterate) — keyed by IP+token.
+const createLimiter = rateLimit({
+  name: "create",
+  windowSeconds: 3600,
+  max: createPerHour,
+  keyFor: (c) => `${clientIp(c)}:${c.get("authTokenHash")}`,
+});
+
+/**
+ * Load a session and enforce ownership: only the token that created the session
+ * (matched by hash) may access it. Returns null + writes a 404 response on miss.
+ */
+async function loadOwnedSession(c: Context, id: string | undefined) {
+  if (!id) return null;
+  const session = await sessionService.getSession(id);
+  if (!session) return null;
+  const tokenHash = c.get("authTokenHash");
+  if (session.ownerTokenHash && session.ownerTokenHash !== tokenHash) {
+    return null;
+  }
+  return session;
+}
+
+function notFound(c: Context) {
+  return c.json({ error: "Session not found" }, 404);
+}
+
 // POST /api/research — Create a new research session
-researchRouter.post("/", async (c) => {
+researchRouter.post("/", createLimiter, async (c) => {
   const body = await c.req.json();
   const parsed = createResearchSchema.safeParse(body);
 
@@ -30,6 +78,7 @@ researchRouter.post("/", async (c) => {
       llmModel: config?.llmModel ?? (process.env.OPENAI_COMPATIBLE_MODEL || "claude-sonnet-4-20250514"),
       searchProvider: config?.searchProvider,
     },
+    ownerTokenHash: c.get("authTokenHash"),
   });
 
   // Enqueue research job
@@ -47,10 +96,11 @@ researchRouter.get("/:id", async (c) => {
     return c.json({ error: "Invalid session ID" }, 400);
   }
 
+  const owned = await loadOwnedSession(c, id);
+  if (!owned) return notFound(c);
+
   const session = await sessionService.getSessionWithCounts(id);
-  if (!session) {
-    return c.json({ error: "Session not found" }, 404);
-  }
+  if (!session) return notFound(c);
 
   return c.json({
     id: session.id,
@@ -76,10 +126,8 @@ researchRouter.get("/:id/stream", async (c) => {
     return c.json({ error: "Invalid session ID" }, 400);
   }
 
-  const session = await sessionService.getSession(id);
-  if (!session) {
-    return c.json({ error: "Session not found" }, 404);
-  }
+  const session = await loadOwnedSession(c, id);
+  if (!session) return notFound(c);
 
   return streamSSE(c, async (stream) => {
     let aborted = false;
@@ -135,10 +183,8 @@ researchRouter.post("/:id/respond", async (c) => {
     return c.json({ error: "Validation failed", details: parsed.error.issues }, 400);
   }
 
-  const session = await sessionService.getSession(id);
-  if (!session) {
-    return c.json({ error: "Session not found" }, 404);
-  }
+  const session = await loadOwnedSession(c, id);
+  if (!session) return notFound(c);
 
   if (session.status !== "awaiting_input") {
     return c.json({ error: "Session is not awaiting input" }, 409);
@@ -158,10 +204,8 @@ researchRouter.get("/:id/report", async (c) => {
     return c.json({ error: "Invalid session ID" }, 400);
   }
 
-  const session = await sessionService.getSession(id);
-  if (!session) {
-    return c.json({ error: "Session not found" }, 404);
-  }
+  const session = await loadOwnedSession(c, id);
+  if (!session) return notFound(c);
 
   const report = await sessionService.getReport(id);
   if (!report) {
@@ -189,17 +233,15 @@ researchRouter.get("/:id/evidence", async (c) => {
     return c.json({ error: "Invalid session ID" }, 400);
   }
 
-  const session = await sessionService.getSession(id);
-  if (!session) {
-    return c.json({ error: "Session not found" }, 404);
-  }
+  const session = await loadOwnedSession(c, id);
+  if (!session) return notFound(c);
 
   const evidence = await sessionService.getEvidence(id);
   return c.json({ evidence });
 });
 
 // POST /api/research/:id/iterate — Iterate on a completed research session
-researchRouter.post("/:id/iterate", async (c) => {
+researchRouter.post("/:id/iterate", createLimiter, async (c) => {
   const id = c.req.param("id");
   const parseResult = sessionIdSchema.safeParse(id);
   if (!parseResult.success) {
@@ -212,10 +254,8 @@ researchRouter.post("/:id/iterate", async (c) => {
     return c.json({ error: "Validation failed", details: parsed.error.issues }, 400);
   }
 
-  const session = await sessionService.getSession(id);
-  if (!session) {
-    return c.json({ error: "Session not found" }, 404);
-  }
+  const session = await loadOwnedSession(c, id);
+  if (!session) return notFound(c);
 
   if (session.status !== "completed") {
     return c.json({ error: "Session must be completed before iterating" }, 409);
@@ -231,6 +271,7 @@ researchRouter.post("/:id/iterate", async (c) => {
     input: parentInput,
     config: parentConfig,
     parentSessionId: id,
+    ownerTokenHash: c.get("authTokenHash"),
   });
 
   const queue = getResearchQueue();
@@ -253,10 +294,8 @@ researchRouter.delete("/:id", async (c) => {
     return c.json({ error: "Invalid session ID" }, 400);
   }
 
-  const session = await sessionService.getSession(id);
-  if (!session) {
-    return c.json({ error: "Session not found" }, 404);
-  }
+  const session = await loadOwnedSession(c, id);
+  if (!session) return notFound(c);
 
   if (session.status === "completed" || session.status === "cancelled") {
     return c.json({ error: "Session already terminated" }, 409);

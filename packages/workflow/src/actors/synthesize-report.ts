@@ -3,7 +3,11 @@ import {
   PHASE5_SYSTEM_PROMPT,
   phase5OutputSchema,
 } from "@contritas/llm";
-import { REPORT_CHAR_TARGETS } from "@contritas/shared";
+import {
+  REPORT_CHAR_TARGETS,
+  wrapExternalContent,
+  EXTERNAL_CONTENT_SAFETY_CLAUSE,
+} from "@contritas/shared";
 import type {
   ResearchContext,
   WorkflowDeps,
@@ -57,14 +61,17 @@ export const synthesizeReport = fromPromise<
           : "";
 
       const evidenceStr = evidenceList
-        .map(
-          (e, i) =>
+        .map((e, i) => {
+          const header =
             `  [${i + 1}] "${e.sourceName}" (${e.sourceType}, credibility: ${e.credibility}, relationship: ${e.relationship})` +
-            `\n      Excerpt: ${e.keyExcerpt}` +
-            `\n      URL: ${e.url}` +
             (e.publishedDate ? `\n      Date: ${e.publishedDate}` : "") +
-            (e.timelinessRisk ? `\n      ⚠️ Timeliness risk` : "")
-        )
+            (e.timelinessRisk ? `\n      ⚠️ Timeliness risk` : "");
+          const excerpt = wrapExternalContent(e.keyExcerpt, {
+            kind: "evidence-excerpt",
+            source: e.url,
+          });
+          return `${header}\n      Excerpt:\n${excerpt}`;
+        })
         .join("\n");
 
       // Find dimension name from context.dimensions by matching position with evidenceByDimension order
@@ -112,7 +119,7 @@ Generate the full 8-section report following the template exactly.`;
   const { data, usage } = await llmProvider.structuredOutput({
     model: getModelForPhase("synthesis"),
     messages: [{ role: "user", content: userMessage }],
-    systemPrompt: PHASE5_SYSTEM_PROMPT,
+    systemPrompt: PHASE5_SYSTEM_PROMPT + EXTERNAL_CONTENT_SAFETY_CLAUSE,
     schema: phase5OutputSchema,
     temperature: 0.1,
     maxTokens: 16384,

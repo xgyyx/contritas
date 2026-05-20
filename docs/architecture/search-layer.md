@@ -69,6 +69,19 @@
 
 ---
 
+## 五·B、URL 安全（SSRF 防护，Phase 6.1.5）
+
+所有 extractor（`JinaExtractor` / `FirecrawlExtractor` / `WebArchiveExtractor`）在调用前都过 `assertSafePublicUrl(url)`：
+
+- 协议必须 `http(s)`。
+- 拒绝带凭据（`user:pass@host`）的 URL。
+- DNS 解析后逐 IP 检查，拒绝私网 / 回环 / link-local（含 `169.254.169.254` 云元数据）/ 多播 / 已知 metadata 域名。
+- 失败抛 `UnsafeUrlError`，调用方降级为"跳过该 URL"，不会让整个维度失败。
+
+实现：`packages/search/src/utils/url-safety.ts`。
+
+---
+
 ## 六、环境变量
 
 ```bash

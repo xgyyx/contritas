@@ -1,4 +1,5 @@
 import type { ContentExtractor, ExtractedContent } from "../types.js";
+import { assertSafePublicUrl, UnsafeUrlError } from "../utils/url-safety.js";
 
 export class JinaExtractor implements ContentExtractor {
   readonly name = "jina";
@@ -11,6 +12,22 @@ export class JinaExtractor implements ContentExtractor {
   }
 
   async extract(url: string): Promise<ExtractedContent> {
+    try {
+      await assertSafePublicUrl(url);
+    } catch (err) {
+      if (err instanceof UnsafeUrlError) {
+        return {
+          url,
+          title: "",
+          content: "",
+          wordCount: 0,
+          success: false,
+          error: err.message,
+        };
+      }
+      throw err;
+    }
+
     const headers: Record<string, string> = {
       Accept: "text/markdown",
     };

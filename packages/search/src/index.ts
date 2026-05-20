@@ -9,3 +9,4 @@ export { RedisSearchCache, RedisContentCache } from "./cache.js";
 export { SessionCallCounter, createSearchLimiter, createExtractLimiter } from "./rate-limiter.js";
 export { URLDeduplicator } from "./deduplicator.js";
 export { SearchOrchestrator } from "./orchestrator.js";
+export { assertSafePublicUrl, UnsafeUrlError } from "./utils/url-safety.js";

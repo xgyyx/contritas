@@ -41,7 +41,7 @@
 # 方式 A：Anthropic 官方或 Anthropic 协议代理
 LLM_PROVIDER=claude
 ANTHROPIC_API_KEY=sk-ant-xxx
-ANTHROPIC_BASE_URL=https://your-proxy.com   # 可选，留空走官方
+ANTHROPIC_BASE_URL=https://your-proxy.com   # 可选，留空走官方；非 *.anthropic.com 域名启动时会打印 warn 日志（Phase 6.1.7）
 
 # 方式 B：OpenAI Compatible 端点
 LLM_PROVIDER=openai-compatible

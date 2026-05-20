@@ -8,7 +8,7 @@ import type {
   Report,
   Evidence,
 } from "@/types";
-import { API_URL } from "./constants";
+import { API_URL, API_TOKEN } from "./constants";
 
 export class ApiError extends Error {
   constructor(
@@ -22,10 +22,12 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    ...options,
-  });
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(API_TOKEN ? { Authorization: `Bearer ${API_TOKEN}` } : {}),
+    ...(options?.headers as Record<string, string> | undefined),
+  };
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
