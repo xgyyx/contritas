@@ -13,6 +13,7 @@ export interface CreateSessionParams {
     llmModel: string;
     searchProvider?: string;
   };
+  parentSessionId?: string;
 }
 
 export async function createSession(params: CreateSessionParams) {
@@ -25,6 +26,7 @@ export async function createSession(params: CreateSessionParams) {
       config: params.config,
       phases: [],
       tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUSD: 0 },
+      parentSessionId: params.parentSessionId,
     })
     .returning();
 
@@ -117,4 +119,18 @@ export async function getCrossValidations(sessionId: string) {
     .select()
     .from(schema.crossValidations)
     .where(eq(schema.crossValidations.sessionId, sessionId));
+}
+
+export async function getAssumptions(sessionId: string) {
+  return db
+    .select()
+    .from(schema.assumptions)
+    .where(eq(schema.assumptions.sessionId, sessionId));
+}
+
+export async function getDimensions(sessionId: string) {
+  return db
+    .select()
+    .from(schema.dimensions)
+    .where(eq(schema.dimensions.sessionId, sessionId));
 }

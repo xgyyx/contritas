@@ -9,7 +9,7 @@ export const plan = fromPromise<
   PlanResult,
   { context: ResearchContext; deps: WorkflowDeps }
 >(async ({ input: { context, deps } }) => {
-  const { llmProvider, llmModel } = deps;
+  const { llmProvider, getModelForPhase } = deps;
 
   const proposition = context.input.validatedProposition ?? context.input.originalText;
   const assumptionsList = context.assumptions
@@ -17,7 +17,7 @@ export const plan = fromPromise<
     .join("\n");
 
   const { data, usage } = await llmProvider.structuredOutput({
-    model: llmModel,
+    model: getModelForPhase("planning"),
     messages: [
       {
         role: "user",

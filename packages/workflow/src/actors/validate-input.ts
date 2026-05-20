@@ -9,7 +9,7 @@ export const validateInput = fromPromise<
   ValidateInputResult,
   { context: ResearchContext; deps: WorkflowDeps }
 >(async ({ input: { context, deps } }) => {
-  const { llmProvider, llmModel } = deps;
+  const { llmProvider, getModelForPhase } = deps;
 
   // Build user message from original text + any previous clarification responses
   let userMessage = context.input.originalText;
@@ -20,7 +20,7 @@ export const validateInput = fromPromise<
   }
 
   const { data: output } = await llmProvider.structuredOutput({
-    model: llmModel,
+    model: getModelForPhase("inputValidation"),
     messages: [{ role: "user", content: userMessage }],
     systemPrompt: PHASE0_SYSTEM_PROMPT,
     schema: phase0OutputSchema,

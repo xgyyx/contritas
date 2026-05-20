@@ -2,15 +2,15 @@ import type { Job } from "bullmq";
 import { createProvider } from "@contritas/llm";
 import type { ResearchJobData } from "../lib/queue.js";
 import * as sessionService from "../services/session.service.js";
-import { createWorkflowController, buildSearchDeps } from "../services/workflow.service.js";
+import { createWorkflowController, createWorkflowControllerFromContext, createIterateContext, buildSearchDeps } from "../services/workflow.service.js";
 import { createRedisConnection } from "../lib/redis.js";
 
 const CLARIFICATION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 export async function processResearchJob(job: Job<ResearchJobData>): Promise<void> {
-  const { sessionId } = job.data;
+  const { sessionId, parentSessionId, iterationType, target } = job.data;
 
-  console.log(`[Worker] Processing research job: ${sessionId}`);
+  console.log(`[Worker] Processing research job: ${sessionId}${parentSessionId ? ` (iterate from ${parentSessionId})` : ""}`);
 
   // Load session from DB
   const session = await sessionService.getSession(sessionId);
@@ -37,20 +37,42 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
 
   // Create workflow controller
   const model = sessionConfig.llmModel || process.env.OPENAI_COMPATIBLE_MODEL || "claude-sonnet-4-20250514";
-  const controller = createWorkflowController(
-    sessionId,
-    input.originalText,
-    input.language,
-    llmProvider,
-    model,
-    searchDeps
-  );
+
+  let controller;
+  if (parentSessionId && iterationType) {
+    // Iterate job — build context from parent session
+    const { context, initialState } = await createIterateContext(
+      sessionId,
+      parentSessionId,
+      iterationType,
+      target,
+    );
+    controller = createWorkflowControllerFromContext(
+      sessionId,
+      context,
+      initialState,
+      llmProvider,
+      model,
+      searchDeps,
+    );
+  } else {
+    // Normal research job
+    controller = createWorkflowController(
+      sessionId,
+      input.originalText,
+      input.language,
+      llmProvider,
+      model,
+      searchDeps,
+    );
+  }
 
   // Handle workflow completion
   const completionPromise = new Promise<void>((resolve, reject) => {
     controller.onComplete(async (result) => {
       const finalStatus = result.finalState === "failed" ? "failed"
         : result.finalState === "cancelled" ? "cancelled"
+        : result.finalState === "budgetExceeded" ? "failed"
         : "completed";
 
       await sessionService.updateSessionStatus(sessionId, finalStatus as "completed" | "failed" | "cancelled");

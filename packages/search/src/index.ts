@@ -5,7 +5,7 @@ export { JinaExtractor } from "./extractors/jina.js";
 export { FirecrawlExtractor } from "./extractors/firecrawl.js";
 export { WebArchiveExtractor } from "./extractors/web-archive.js";
 export { FallbackExtractorChain } from "./extractors/fallback-chain.js";
-export { RedisSearchCache } from "./cache.js";
+export { RedisSearchCache, RedisContentCache } from "./cache.js";
 export { SessionCallCounter, createSearchLimiter, createExtractLimiter } from "./rate-limiter.js";
 export { URLDeduplicator } from "./deduplicator.js";
 export { SearchOrchestrator } from "./orchestrator.js";

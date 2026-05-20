@@ -212,8 +212,19 @@ researchRouter.post("/:id/iterate", async (c) => {
   }
 
   const childSessionId = generateId();
+  const parentInput = session.input as { originalText: string; language: "zh" | "en" };
+  const parentConfig = session.config as { llmProvider: string; llmModel: string; searchProvider?: string };
+
+  // Create child session in DB before enqueueing
+  await sessionService.createSession({
+    id: childSessionId,
+    input: parentInput,
+    config: parentConfig,
+    parentSessionId: id,
+  });
+
   const queue = getResearchQueue();
-  await queue.add("research-iterate", {
+  await queue.add("research", {
     sessionId: childSessionId,
     parentSessionId: id,
     iterationType: parsed.data.type,

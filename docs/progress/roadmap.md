@@ -12,7 +12,7 @@
 | Phase 2 | 搜索引擎       | ✅ 已完成 | [phase2-progress.md](./phase2-progress.md) |
 | Phase 3 | 分析与报告     | ✅ 已完成 | [phase3-progress.md](./phase3-progress.md) |
 | Phase 4 | 前端           | ✅ 已完成 | [phase4-progress.md](./phase4-progress.md) |
-| Phase 5 | 优化与扩展     | 🔲 待开始 | —                                       |
+| Phase 5 | 优化与扩展     | ✅ 已完成 | [phase5-progress.md](./phase5-progress.md) |
 
 ---
 
@@ -52,9 +52,10 @@
 - 历史列表（localStorage 持久化）✅
 - 迭代/深挖交互 ✅
 
-### Phase 5：优化与扩展
+### Phase 5：优化与扩展 ✅
 
-- Model Router 按 Phase 路由到不同模型
-- 成本监控与 Token 预算机制
-- 搜索结果缓存优化
-- 更多 Provider 扩展（如需）
+- Model Router 按 Phase 路由到不同模型 ✅
+- 成本监控与 Token 预算机制 ✅
+- 搜索结果缓存优化 ✅
+- ETA 事件发射修复 ✅
+- 迭代研究（Iterate）功能修复 ✅

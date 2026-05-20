@@ -16,6 +16,7 @@ import type {
   SearchProvider,
   ContentExtractor,
   SearchCache,
+  ContentCache,
   SearchEventCallback,
 } from "@contritas/search";
 
@@ -102,6 +103,7 @@ export interface SearchDeps {
   fallbackSearchProvider?: SearchProvider;
   contentExtractor: ContentExtractor;
   cache?: SearchCache;
+  contentCache?: ContentCache;
   searchConcurrencyLimit: number;
   extractConcurrencyLimit: number;
   maxSearchCallsPerSession: number;
@@ -115,8 +117,9 @@ export interface SearchDeps {
 
 export interface WorkflowDeps {
   llmProvider: LLMProvider;
-  llmModel: string;
+  getModelForPhase: (phase: PhaseId) => string;
   searchDeps?: SearchDeps;
+  tokenBudgetUSD?: number;
   emitEvent: (event: WorkflowEmittedEvent) => void;
   persistState: (context: ResearchContext) => Promise<void>;
 }
@@ -129,7 +132,8 @@ export type WorkflowEmittedEvent =
   | { type: "search_executed"; query: string; language: Language; resultsCount: number }
   | { type: "evidence_added"; dimensionId: string; source: string; credibility: Credibility }
   | { type: "validation_complete"; contradictionsFound: number }
-  | { type: "report_ready"; reportId: string };
+  | { type: "report_ready"; reportId: string }
+  | { type: "eta_update"; estimatedSecondsRemaining: number };
 
 // ══════════════════════════════════════════
 // Actor Input/Output

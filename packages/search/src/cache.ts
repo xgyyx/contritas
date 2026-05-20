@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { SearchCache, SearchResult } from "./types.js";
+import type { SearchCache, SearchResult, ContentCache, ExtractedContent } from "./types.js";
 
 export interface RedisLike {
   get(key: string): Promise<string | null>;
@@ -44,6 +44,45 @@ export class RedisSearchCache implements SearchCache {
   }
 }
 
-export function buildCacheKey(query: string, language: string): string {
-  return `${language}:${query}`;
+export function buildCacheKey(query: string, language: string, provider?: string): string {
+  const parts = provider ? [provider, language, query] : [language, query];
+  return parts.join(":");
+}
+
+export class RedisContentCache implements ContentCache {
+  private readonly redis: RedisLike;
+  private readonly keyPrefix: string;
+
+  constructor(redis: RedisLike, keyPrefix = "content:cache:") {
+    this.redis = redis;
+    this.keyPrefix = keyPrefix;
+  }
+
+  async get(url: string): Promise<ExtractedContent | null> {
+    try {
+      const cached = await this.redis.get(this.buildKey(url));
+      if (!cached) return null;
+      return JSON.parse(cached) as ExtractedContent;
+    } catch {
+      return null;
+    }
+  }
+
+  async set(url: string, content: ExtractedContent, ttlSeconds: number): Promise<void> {
+    try {
+      await this.redis.set(
+        this.buildKey(url),
+        JSON.stringify(content),
+        "EX",
+        ttlSeconds,
+      );
+    } catch {
+      // Graceful degradation
+    }
+  }
+
+  private buildKey(url: string): string {
+    const hash = createHash("sha256").update(url).digest("hex").slice(0, 16);
+    return `${this.keyPrefix}${hash}`;
+  }
 }

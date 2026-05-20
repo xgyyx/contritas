@@ -30,6 +30,9 @@ export const MAX_SELF_CHECK_RETRIES = 1;
 export const MIN_EVIDENCE_FOR_REPORT = 3;
 export const MIN_HIGH_CREDIBILITY_FOR_REPORT = 1;
 
+export const DEFAULT_TOKEN_BUDGET_USD = 2.0;
+export const BUDGET_WARNING_THRESHOLD = 0.8;
+
 export const REPORT_CHAR_TARGETS = {
   low: { min: 3000, max: 4000 },
   medium: { min: 5000, max: 7000 },

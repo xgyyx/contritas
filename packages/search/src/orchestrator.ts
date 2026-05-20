@@ -148,7 +148,7 @@ export class SearchOrchestrator {
           usedQueries.push(q.query);
 
           // Check cache
-          const cacheKey = buildCacheKey(q.query, q.language);
+          const cacheKey = buildCacheKey(q.query, q.language, this.config.searchProvider.name);
           if (this.config.cache) {
             const cached = await this.config.cache.get(cacheKey);
             if (cached) {
@@ -215,7 +215,20 @@ export class SearchOrchestrator {
   private async extractContents(results: SearchResult[]): Promise<ExtractedContent[]> {
     const extractTasks = results.map((r) =>
       this.extractLimiter(async () => {
-        return await this.config.contentExtractor.extract(r.url);
+        // Check content cache first
+        if (this.config.contentCache) {
+          const cached = await this.config.contentCache.get(r.url);
+          if (cached) return cached;
+        }
+
+        const extracted = await this.config.contentExtractor.extract(r.url);
+
+        // Cache successful extraction
+        if (extracted.success && this.config.contentCache) {
+          await this.config.contentCache.set(r.url, extracted, SEARCH_CACHE_TTL_SECONDS);
+        }
+
+        return extracted;
       })
     );
 

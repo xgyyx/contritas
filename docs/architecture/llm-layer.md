@@ -65,7 +65,25 @@ Model Router 允许按 Phase 路由到不同模型，配置结构：
 | crossValidation    | 需要推理             | Claude / GPT-4o          |
 | synthesis          | 长输出、高质量       | Claude                   |
 
-具体配置见 `packages/llm/src/router.ts`。用户可在 `/settings` 页面配置每个 Phase 使用的模型。
+具体配置见 `packages/llm/src/router.ts`。
+
+**使用方式**：`WorkflowDeps.getModelForPhase(phase)` 返回当前 phase 对应的模型名。默认通过 `createDefaultRoutingConfig(provider, model)` 创建配置，所有 phase 使用同一模型。可通过自定义 `ModelRoutingConfig` 实现按 phase 差异化路由。
+
+```typescript
+import { ModelRouter, createDefaultRoutingConfig } from "@contritas/llm";
+
+// 默认：所有 phase 用同一模型
+const router = new ModelRouter(createDefaultRoutingConfig("claude", "claude-sonnet-4-20250514"));
+
+// 自定义：synthesis 用更强模型
+router.updateConfig({
+  synthesis: { provider: "claude", model: "claude-opus-4-20250514" },
+  evidenceExtraction: { provider: "openai-compatible", model: "gpt-4o-mini" },
+});
+
+// 在 WorkflowDeps 中使用
+const model = router.getModelForPhase("synthesis"); // { provider: "claude", model: "claude-opus-4-..." }
+```
 
 ---
 

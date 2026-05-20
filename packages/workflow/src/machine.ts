@@ -1,5 +1,5 @@
 import { setup, assign, type AnyEventObject } from "xstate";
-import { MAX_SELF_CHECK_RETRIES } from "@contritas/shared";
+import { MAX_SELF_CHECK_RETRIES, DEFAULT_TOKEN_BUDGET_USD } from "@contritas/shared";
 import type {
   ResearchContext,
   ResearchEvent,
@@ -16,7 +16,7 @@ import { searchDimensions } from "./actors/search-dimensions.js";
 import { crossValidate } from "./actors/cross-validate.js";
 import { synthesizeReport } from "./actors/synthesize-report.js";
 
-export function createResearchMachine(deps: WorkflowDeps) {
+export function createResearchMachine(deps: WorkflowDeps, initialState: string = "inputValidation") {
   return setup({
     types: {
       context: {} as ResearchContext,
@@ -45,7 +45,7 @@ export function createResearchMachine(deps: WorkflowDeps) {
     },
   }).createMachine({
     id: "research",
-    initial: "inputValidation",
+    initial: initialState as any,
     context: ({ input }) => input,
 
     states: {
@@ -147,26 +147,54 @@ export function createResearchMachine(deps: WorkflowDeps) {
         invoke: {
           src: "decompose",
           input: ({ context }) => ({ context, deps }),
-          onDone: {
-            target: "planning",
-            actions: [
-              assign({
-                assumptions: ({ event }) => event.output.assumptions,
-                tokenUsage: ({ context, event }) => ({
-                  inputTokens: context.tokenUsage.inputTokens + event.output.usage.inputTokens,
-                  outputTokens: context.tokenUsage.outputTokens + event.output.usage.outputTokens,
-                  totalTokens: context.tokenUsage.totalTokens + event.output.usage.totalTokens,
-                  estimatedCostUSD: context.tokenUsage.estimatedCostUSD + event.output.usage.estimatedCostUSD,
+          onDone: [
+            {
+              guard: ({ context, event }: { context: ResearchContext; event: AnyEventObject }) => {
+                const budget = deps.tokenBudgetUSD ?? DEFAULT_TOKEN_BUDGET_USD;
+                const newCost = context.tokenUsage.estimatedCostUSD + (event.output?.usage?.estimatedCostUSD ?? 0);
+                return newCost >= budget;
+              },
+              target: "budgetExceeded",
+              actions: [
+                assign({
+                  assumptions: ({ event }) => event.output.assumptions,
+                  tokenUsage: ({ context, event }) => ({
+                    inputTokens: context.tokenUsage.inputTokens + event.output.usage.inputTokens,
+                    outputTokens: context.tokenUsage.outputTokens + event.output.usage.outputTokens,
+                    totalTokens: context.tokenUsage.totalTokens + event.output.usage.totalTokens,
+                    estimatedCostUSD: context.tokenUsage.estimatedCostUSD + event.output.usage.estimatedCostUSD,
+                  }),
                 }),
-                phases: ({ context }) => [
-                  ...context.phases.filter((p) => p.id !== "decomposition"),
-                  { id: "decomposition" as const, status: "completed" as const, completedAt: new Date().toISOString() },
-                ],
-              }),
-              () => { deps.emitEvent({ type: "phase_change", phase: "decomposition", status: "completed" }); },
-              ({ context }) => { deps.persistState(context); },
-            ],
-          },
+                ({ context }) => {
+                  deps.emitEvent({
+                    type: "error",
+                    message: `Token budget exceeded ($${context.tokenUsage.estimatedCostUSD.toFixed(4)} / $${deps.tokenBudgetUSD ?? DEFAULT_TOKEN_BUDGET_USD})`,
+                    recoverable: false,
+                  });
+                },
+              ],
+            },
+            {
+              target: "planning",
+              actions: [
+                assign({
+                  assumptions: ({ event }) => event.output.assumptions,
+                  tokenUsage: ({ context, event }) => ({
+                    inputTokens: context.tokenUsage.inputTokens + event.output.usage.inputTokens,
+                    outputTokens: context.tokenUsage.outputTokens + event.output.usage.outputTokens,
+                    totalTokens: context.tokenUsage.totalTokens + event.output.usage.totalTokens,
+                    estimatedCostUSD: context.tokenUsage.estimatedCostUSD + event.output.usage.estimatedCostUSD,
+                  }),
+                  phases: ({ context }) => [
+                    ...context.phases.filter((p) => p.id !== "decomposition"),
+                    { id: "decomposition" as const, status: "completed" as const, completedAt: new Date().toISOString() },
+                  ],
+                }),
+                () => { deps.emitEvent({ type: "phase_change", phase: "decomposition", status: "completed" }); },
+                ({ context }) => { deps.persistState(context); },
+              ],
+            },
+          ],
           onError: {
             target: "failed",
             actions: [
@@ -186,27 +214,65 @@ export function createResearchMachine(deps: WorkflowDeps) {
         invoke: {
           src: "plan",
           input: ({ context }) => ({ context, deps }),
-          onDone: {
-            target: "retrieval",
-            actions: [
-              assign({
-                dimensions: ({ event }) => event.output.dimensions,
-                complexity: ({ event }) => event.output.complexity,
-                tokenUsage: ({ context, event }) => ({
-                  inputTokens: context.tokenUsage.inputTokens + event.output.usage.inputTokens,
-                  outputTokens: context.tokenUsage.outputTokens + event.output.usage.outputTokens,
-                  totalTokens: context.tokenUsage.totalTokens + event.output.usage.totalTokens,
-                  estimatedCostUSD: context.tokenUsage.estimatedCostUSD + event.output.usage.estimatedCostUSD,
+          onDone: [
+            {
+              guard: ({ context, event }: { context: ResearchContext; event: AnyEventObject }) => {
+                const budget = deps.tokenBudgetUSD ?? DEFAULT_TOKEN_BUDGET_USD;
+                const newCost = context.tokenUsage.estimatedCostUSD + (event.output?.usage?.estimatedCostUSD ?? 0);
+                return newCost >= budget;
+              },
+              target: "budgetExceeded",
+              actions: [
+                assign({
+                  dimensions: ({ event }) => event.output.dimensions,
+                  complexity: ({ event }) => event.output.complexity,
+                  tokenUsage: ({ context, event }) => ({
+                    inputTokens: context.tokenUsage.inputTokens + event.output.usage.inputTokens,
+                    outputTokens: context.tokenUsage.outputTokens + event.output.usage.outputTokens,
+                    totalTokens: context.tokenUsage.totalTokens + event.output.usage.totalTokens,
+                    estimatedCostUSD: context.tokenUsage.estimatedCostUSD + event.output.usage.estimatedCostUSD,
+                  }),
                 }),
-                phases: ({ context }) => [
-                  ...context.phases.filter((p) => p.id !== "planning"),
-                  { id: "planning" as const, status: "completed" as const, completedAt: new Date().toISOString() },
-                ],
-              }),
-              () => { deps.emitEvent({ type: "phase_change", phase: "planning", status: "completed" }); },
-              ({ context }) => { deps.persistState(context); },
-            ],
-          },
+                ({ context }) => {
+                  deps.emitEvent({
+                    type: "error",
+                    message: `Token budget exceeded ($${context.tokenUsage.estimatedCostUSD.toFixed(4)} / $${deps.tokenBudgetUSD ?? DEFAULT_TOKEN_BUDGET_USD})`,
+                    recoverable: false,
+                  });
+                },
+              ],
+            },
+            {
+              target: "retrieval",
+              actions: [
+                assign({
+                  dimensions: ({ event }) => event.output.dimensions,
+                  complexity: ({ event }) => event.output.complexity,
+                  tokenUsage: ({ context, event }) => ({
+                    inputTokens: context.tokenUsage.inputTokens + event.output.usage.inputTokens,
+                    outputTokens: context.tokenUsage.outputTokens + event.output.usage.outputTokens,
+                    totalTokens: context.tokenUsage.totalTokens + event.output.usage.totalTokens,
+                    estimatedCostUSD: context.tokenUsage.estimatedCostUSD + event.output.usage.estimatedCostUSD,
+                  }),
+                  phases: ({ context }) => [
+                    ...context.phases.filter((p) => p.id !== "planning"),
+                    { id: "planning" as const, status: "completed" as const, completedAt: new Date().toISOString() },
+                  ],
+                }),
+                () => { deps.emitEvent({ type: "phase_change", phase: "planning", status: "completed" }); },
+                ({ event }) => {
+                  const estimatedMinutes = event.output.estimatedMinutes;
+                  if (estimatedMinutes > 0) {
+                    deps.emitEvent({
+                      type: "eta_update",
+                      estimatedSecondsRemaining: estimatedMinutes * 60,
+                    });
+                  }
+                },
+                ({ context }) => { deps.persistState(context); },
+              ],
+            },
+          ],
           onError: {
             target: "failed",
             actions: [
@@ -271,34 +337,66 @@ export function createResearchMachine(deps: WorkflowDeps) {
         invoke: {
           src: "crossValidate",
           input: ({ context }) => ({ context, deps }),
-          onDone: {
-            target: "synthesis",
-            actions: [
-              assign({
-                crossValidations: ({ event }) => (event.output as CrossValidationResult).crossValidations,
-                tokenUsage: ({ context, event }) => {
-                  const usage = (event.output as CrossValidationResult).usage;
-                  return {
-                    inputTokens: context.tokenUsage.inputTokens + usage.inputTokens,
-                    outputTokens: context.tokenUsage.outputTokens + usage.outputTokens,
-                    totalTokens: context.tokenUsage.totalTokens + usage.totalTokens,
-                    estimatedCostUSD: context.tokenUsage.estimatedCostUSD + usage.estimatedCostUSD,
-                  };
-                },
-                phases: ({ context }) => [
-                  ...context.phases.filter((p) => p.id !== "validation"),
-                  { id: "validation" as const, status: "completed" as const, completedAt: new Date().toISOString() },
-                ],
-              }),
-              ({ event }) => {
-                const result = event.output as CrossValidationResult;
-                const contradictions = result.crossValidations.filter((cv) => !cv.consistent).length;
-                deps.emitEvent({ type: "validation_complete", contradictionsFound: contradictions });
+          onDone: [
+            {
+              guard: ({ context, event }: { context: ResearchContext; event: AnyEventObject }) => {
+                const budget = deps.tokenBudgetUSD ?? DEFAULT_TOKEN_BUDGET_USD;
+                const usage = (event.output as CrossValidationResult)?.usage;
+                const newCost = context.tokenUsage.estimatedCostUSD + (usage?.estimatedCostUSD ?? 0);
+                return newCost >= budget;
               },
-              () => { deps.emitEvent({ type: "phase_change", phase: "validation", status: "completed" }); },
-              ({ context }) => { deps.persistState(context); },
-            ],
-          },
+              target: "budgetExceeded",
+              actions: [
+                assign({
+                  crossValidations: ({ event }) => (event.output as CrossValidationResult).crossValidations,
+                  tokenUsage: ({ context, event }) => {
+                    const usage = (event.output as CrossValidationResult).usage;
+                    return {
+                      inputTokens: context.tokenUsage.inputTokens + usage.inputTokens,
+                      outputTokens: context.tokenUsage.outputTokens + usage.outputTokens,
+                      totalTokens: context.tokenUsage.totalTokens + usage.totalTokens,
+                      estimatedCostUSD: context.tokenUsage.estimatedCostUSD + usage.estimatedCostUSD,
+                    };
+                  },
+                }),
+                ({ context }) => {
+                  deps.emitEvent({
+                    type: "error",
+                    message: `Token budget exceeded ($${context.tokenUsage.estimatedCostUSD.toFixed(4)} / $${deps.tokenBudgetUSD ?? DEFAULT_TOKEN_BUDGET_USD})`,
+                    recoverable: false,
+                  });
+                },
+              ],
+            },
+            {
+              target: "synthesis",
+              actions: [
+                assign({
+                  crossValidations: ({ event }) => (event.output as CrossValidationResult).crossValidations,
+                  tokenUsage: ({ context, event }) => {
+                    const usage = (event.output as CrossValidationResult).usage;
+                    return {
+                      inputTokens: context.tokenUsage.inputTokens + usage.inputTokens,
+                      outputTokens: context.tokenUsage.outputTokens + usage.outputTokens,
+                      totalTokens: context.tokenUsage.totalTokens + usage.totalTokens,
+                      estimatedCostUSD: context.tokenUsage.estimatedCostUSD + usage.estimatedCostUSD,
+                    };
+                  },
+                  phases: ({ context }) => [
+                    ...context.phases.filter((p) => p.id !== "validation"),
+                    { id: "validation" as const, status: "completed" as const, completedAt: new Date().toISOString() },
+                  ],
+                }),
+                ({ event }) => {
+                  const result = event.output as CrossValidationResult;
+                  const contradictions = result.crossValidations.filter((cv) => !cv.consistent).length;
+                  deps.emitEvent({ type: "validation_complete", contradictionsFound: contradictions });
+                },
+                () => { deps.emitEvent({ type: "phase_change", phase: "validation", status: "completed" }); },
+                ({ context }) => { deps.persistState(context); },
+              ],
+            },
+          ],
           onError: {
             target: "failed",
             actions: [
@@ -392,6 +490,10 @@ export function createResearchMachine(deps: WorkflowDeps) {
       },
 
       cancelled: {
+        type: "final",
+      },
+
+      budgetExceeded: {
         type: "final",
       },
     },

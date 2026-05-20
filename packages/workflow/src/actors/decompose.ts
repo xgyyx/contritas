@@ -9,12 +9,12 @@ export const decompose = fromPromise<
   DecomposeResult,
   { context: ResearchContext; deps: WorkflowDeps }
 >(async ({ input: { context, deps } }) => {
-  const { llmProvider, llmModel } = deps;
+  const { llmProvider, getModelForPhase } = deps;
 
   const proposition = context.input.validatedProposition ?? context.input.originalText;
 
   const { data, usage } = await llmProvider.structuredOutput({
-    model: llmModel,
+    model: getModelForPhase("decomposition"),
     messages: [
       {
         role: "user",

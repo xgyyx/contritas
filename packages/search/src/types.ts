@@ -51,6 +51,11 @@ export interface SearchCache {
   set(key: string, results: SearchResult[], ttlSeconds: number): Promise<void>;
 }
 
+export interface ContentCache {
+  get(url: string): Promise<ExtractedContent | null>;
+  set(url: string, content: ExtractedContent, ttlSeconds: number): Promise<void>;
+}
+
 // ══════════════════════════════════════════
 // Orchestrator Types
 // ══════════════════════════════════════════
@@ -63,6 +68,7 @@ export interface SearchOrchestratorConfig {
   extractConcurrencyLimit: number;
   maxSearchCallsPerSession: number;
   cache?: SearchCache;
+  contentCache?: ContentCache;
 }
 
 export interface DimensionSearchInput {

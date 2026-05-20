@@ -9,7 +9,7 @@ export const crossValidate = fromPromise<
   CrossValidationResult,
   { context: ResearchContext; deps: WorkflowDeps }
 >(async ({ input: { context, deps } }) => {
-  const { llmProvider, llmModel } = deps;
+  const { llmProvider, getModelForPhase } = deps;
 
   // Group evidence by dimensionId
   const evidenceByDimension = new Map<string, EvidenceData[]>();
@@ -57,7 +57,7 @@ ${dimensionSections.join("\n\n---\n\n")}
 For each dimension, analyze consistency and assign a verdict. Return the dimensionId exactly as shown above.`;
 
   const { data, usage } = await llmProvider.structuredOutput({
-    model: llmModel,
+    model: getModelForPhase("validation"),
     messages: [{ role: "user", content: userMessage }],
     systemPrompt: PHASE4_SYSTEM_PROMPT,
     schema: phase4OutputSchema,

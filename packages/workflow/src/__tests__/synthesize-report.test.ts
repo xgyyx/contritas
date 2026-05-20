@@ -88,7 +88,7 @@ function createMockDeps(responses: unknown[]): WorkflowDeps {
   const provider = new MockProvider({ structuredResponses: responses });
   return {
     llmProvider: provider,
-    llmModel: "mock-model",
+    getModelForPhase: () => "mock-model",
     emitEvent: vi.fn(),
     persistState: vi.fn().mockResolvedValue(undefined),
   };

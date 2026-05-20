@@ -39,7 +39,7 @@ function createTestDeps(mockProvider?: MockProvider): WorkflowDeps {
 
   return {
     llmProvider: provider,
-    llmModel: "mock-model",
+    getModelForPhase: () => "mock-model",
     emitEvent: vi.fn(),
     persistState: vi.fn().mockResolvedValue(undefined),
   };
@@ -243,5 +243,64 @@ describe("Research Machine", () => {
     });
 
     expect(result).toBe("failed");
+  });
+
+  it("emits eta_update after planning phase completes", async () => {
+    const deps = createTestDeps();
+    const machine = createResearchMachine(deps);
+    const context = createTestContext();
+
+    await new Promise<void>((resolve) => {
+      const actor = createActor(machine, { input: context });
+      actor.subscribe({
+        complete: () => resolve(),
+      });
+      actor.start();
+    });
+
+    const emitCalls = (deps.emitEvent as ReturnType<typeof vi.fn>).mock.calls;
+    const etaEvents = emitCalls.filter(
+      (call: unknown[]) => (call[0] as { type: string }).type === "eta_update"
+    );
+    expect(etaEvents.length).toBeGreaterThanOrEqual(1);
+    expect(etaEvents[0][0].estimatedSecondsRemaining).toBe(20 * 60); // 20 minutes from mock
+  });
+
+  it("transitions to budgetExceeded when cost exceeds budget", async () => {
+    const provider = new MockProvider({
+      structuredResponses: [
+        // Phase 0: valid input
+        {
+          valid: true,
+          validatedProposition: "Test proposition",
+          detectedLanguage: "zh",
+        },
+        // Phase 1: decomposition — returns high cost usage
+        {
+          assumptions: [
+            { content: "Assumption 1", type: "factual", importance: "high", order: 1 },
+          ],
+        },
+      ],
+      // MockProvider returns default usage with estimatedCostUSD = 0
+      // We need to set a very low budget to trigger the guard
+    });
+
+    const deps = createTestDeps(provider);
+    deps.tokenBudgetUSD = 0; // Zero budget — any cost should exceed it
+    const machine = createResearchMachine(deps);
+    const context = createTestContext();
+
+    const result = await new Promise<string>((resolve) => {
+      const actor = createActor(machine, { input: context });
+      actor.subscribe({
+        complete: () => {
+          resolve(actor.getSnapshot().value as string);
+        },
+      });
+      actor.start();
+    });
+
+    expect(result).toBe("budgetExceeded");
   });
 });

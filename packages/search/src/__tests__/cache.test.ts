@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { RedisSearchCache, buildCacheKey } from "../cache.js";
+import { RedisSearchCache, RedisContentCache, buildCacheKey } from "../cache.js";
 import { SessionCallCounter } from "../rate-limiter.js";
 import { URLDeduplicator } from "../deduplicator.js";
 
@@ -80,6 +80,54 @@ describe("buildCacheKey", () => {
     const key1 = buildCacheKey("query", "zh");
     const key2 = buildCacheKey("query", "en");
     expect(key1).not.toBe(key2);
+  });
+
+  it("includes provider in key when specified", () => {
+    const key1 = buildCacheKey("query", "zh", "tavily");
+    const key2 = buildCacheKey("query", "zh", "serper");
+    const key3 = buildCacheKey("query", "zh");
+    expect(key1).not.toBe(key2);
+    expect(key1).not.toBe(key3);
+    expect(key1).toBe("tavily:zh:query");
+  });
+});
+
+describe("RedisContentCache", () => {
+  it("returns null on cache miss", async () => {
+    const redis = createMockRedis();
+    const cache = new RedisContentCache(redis);
+
+    const result = await cache.get("https://example.com");
+    expect(result).toBeNull();
+  });
+
+  it("stores and retrieves content", async () => {
+    const redis = createMockRedis();
+    const cache = new RedisContentCache(redis);
+
+    const content = {
+      url: "https://example.com",
+      title: "Test",
+      content: "Hello world",
+      wordCount: 2,
+      success: true,
+    };
+
+    await cache.set("https://example.com", content, 3600);
+    const retrieved = await cache.get("https://example.com");
+
+    expect(retrieved).toEqual(content);
+  });
+
+  it("handles Redis errors gracefully", async () => {
+    const redis = {
+      get: async () => { throw new Error("Connection refused"); },
+      set: async () => "OK",
+    };
+    const cache = new RedisContentCache(redis);
+
+    const result = await cache.get("https://example.com");
+    expect(result).toBeNull();
   });
 });
 

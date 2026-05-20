@@ -17,7 +17,7 @@ export const synthesizeReport = fromPromise<
   SynthesisResult,
   { context: ResearchContext; deps: WorkflowDeps }
 >(async ({ input: { context, deps } }) => {
-  const { llmProvider, llmModel } = deps;
+  const { llmProvider, getModelForPhase } = deps;
 
   const proposition = context.input.validatedProposition ?? context.input.originalText;
   const complexity = context.complexity ?? "medium";
@@ -110,7 +110,7 @@ ${dimensionsText}
 Generate the full 8-section report following the template exactly.`;
 
   const { data, usage } = await llmProvider.structuredOutput({
-    model: llmModel,
+    model: getModelForPhase("synthesis"),
     messages: [{ role: "user", content: userMessage }],
     systemPrompt: PHASE5_SYSTEM_PROMPT,
     schema: phase5OutputSchema,

@@ -111,7 +111,7 @@ Schema 定义：`apps/api/src/drizzle/schema.ts`（Drizzle 格式，以代码为
 - Phase 2 搜索引擎 ✅
 - Phase 3 分析与报告 ✅（交叉验证 + 报告综合 + 评分 + 自检）
 - Phase 4 前端 ✅（Next.js + SSE 实时 + 报告查看 + 历史 + 迭代交互）
-- Phase 5 优化与扩展 — 待开始
+- Phase 5 优化与扩展 ✅（ModelRouter 路由 + Token 预算 + 搜索缓存优化 + ETA 事件 + 迭代修复）
 
 详见 `docs/progress/roadmap.md`。
 

@@ -27,12 +27,13 @@ export const searchDimensions = fromPromise(
         fallbackSearchProvider: searchDeps.fallbackSearchProvider,
         contentExtractor: searchDeps.contentExtractor,
         cache: searchDeps.cache,
+        contentCache: searchDeps.contentCache,
         searchConcurrencyLimit: searchDeps.searchConcurrencyLimit,
         extractConcurrencyLimit: searchDeps.extractConcurrencyLimit,
         maxSearchCallsPerSession: searchDeps.maxSearchCallsPerSession,
       },
       deps.llmProvider,
-      searchDeps.evidenceEvalModel ?? deps.llmModel,
+      searchDeps.evidenceEvalModel ?? deps.getModelForPhase("retrieval"),
       callCounter,
       (event) => {
         // Forward search events through workflow event system

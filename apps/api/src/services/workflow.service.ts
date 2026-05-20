@@ -1,13 +1,14 @@
 import { createActor } from "xstate";
 import { eq } from "drizzle-orm";
-import { createResearchMachine, type ResearchContext, type WorkflowDeps, type WorkflowEmittedEvent, type SearchDeps } from "@contritas/workflow";
+import { createResearchMachine, type ResearchContext, type WorkflowDeps, type WorkflowEmittedEvent, type SearchDeps, type AssumptionData, type DimensionData, type EvidenceData } from "@contritas/workflow";
 import { generateId, type ProgressEvent } from "@contritas/shared";
 import {
   SEARCH_CONCURRENT_LIMIT,
   EXTRACT_CONCURRENT_LIMIT,
   MAX_SEARCH_CALLS_PER_SESSION,
+  DEFAULT_TOKEN_BUDGET_USD,
 } from "@contritas/shared";
-import { createProvider, type LLMProvider } from "@contritas/llm";
+import { createProvider, type LLMProvider, ModelRouter, createDefaultRoutingConfig } from "@contritas/llm";
 import {
   TavilySearchProvider,
   SerperSearchProvider,
@@ -16,6 +17,7 @@ import {
   WebArchiveExtractor,
   FallbackExtractorChain,
   RedisSearchCache,
+  RedisContentCache,
 } from "@contritas/search";
 import { db, schema } from "../drizzle/index.js";
 import { publishEvent } from "./stream.service.js";
@@ -84,9 +86,11 @@ export function buildSearchDeps(searchConfig: SearchConfig): SearchDeps | undefi
 
   // Build cache
   let cache;
+  let contentCache;
   try {
     const redis = getRedis();
     cache = new RedisSearchCache(redis);
+    contentCache = new RedisContentCache(redis);
   } catch {
     // Redis not available — proceed without cache
   }
@@ -96,6 +100,7 @@ export function buildSearchDeps(searchConfig: SearchConfig): SearchDeps | undefi
     fallbackSearchProvider,
     contentExtractor,
     cache,
+    contentCache,
     searchConcurrencyLimit: SEARCH_CONCURRENT_LIMIT,
     extractConcurrencyLimit: EXTRACT_CONCURRENT_LIMIT,
     maxSearchCallsPerSession: MAX_SEARCH_CALLS_PER_SESSION,
@@ -108,10 +113,15 @@ export function createWorkflowDeps(
   llmModel: string,
   searchDeps?: SearchDeps
 ): WorkflowDeps {
+  const router = new ModelRouter(
+    createDefaultRoutingConfig(llmProvider.name, llmModel)
+  );
+
   return {
     llmProvider,
-    llmModel,
+    getModelForPhase: (phase) => router.getModelForPhase(phase).model,
     searchDeps,
+    tokenBudgetUSD: DEFAULT_TOKEN_BUDGET_USD,
     emitEvent: (event: WorkflowEmittedEvent) => {
       const progressEvent: ProgressEvent = (() => {
         switch (event.type) {
@@ -170,6 +180,12 @@ export function createWorkflowDeps(
             return {
               type: "report_ready" as const,
               reportId: event.reportId,
+              timestamp: new Date().toISOString(),
+            };
+          case "eta_update":
+            return {
+              type: "eta_update" as const,
+              estimatedSecondsRemaining: event.estimatedSecondsRemaining,
               timestamp: new Date().toISOString(),
             };
         }
@@ -355,6 +371,149 @@ export function createWorkflowController(
   const context = createInitialContext(sessionId, originalText, language);
   const workflowDeps = createWorkflowDeps(sessionId, llmProvider, llmModel, searchDeps);
   const machine = createResearchMachine(workflowDeps);
+  const actor = createActor(machine, { input: context });
+
+  return {
+    actor,
+    start() {
+      actor.start();
+    },
+    sendUserResponse(response: string) {
+      actor.send({ type: "USER_RESPONSE", response });
+    },
+    cancel() {
+      actor.send({ type: "CANCEL" });
+    },
+    getState() {
+      return actor.getSnapshot().value;
+    },
+    getContext() {
+      return actor.getSnapshot().context;
+    },
+    onComplete(callback: (result: WorkflowRunResult) => void) {
+      actor.subscribe({
+        complete: () => {
+          const snapshot = actor.getSnapshot();
+          callback({
+            finalState: snapshot.value as string,
+            context: snapshot.context,
+          });
+        },
+      });
+    },
+    onError(callback: (err: unknown) => void) {
+      actor.subscribe({
+        error: (err: unknown) => callback(err),
+      });
+    },
+  };
+}
+
+/**
+ * Build a ResearchContext from a parent session's data for iterate workflows.
+ */
+export async function createIterateContext(
+  childSessionId: string,
+  parentSessionId: string,
+  iterationType: "deep_dive" | "add_dimension",
+  target?: string,
+): Promise<{ context: ResearchContext; initialState: string }> {
+  const parentSession = await sessionService.getSession(parentSessionId);
+  if (!parentSession) {
+    throw new Error(`Parent session ${parentSessionId} not found`);
+  }
+
+  const parentInput = parentSession.input as { originalText: string; language: "zh" | "en" };
+  const parentAssumptions = await sessionService.getAssumptions(parentSessionId);
+  const parentDimensions = await sessionService.getDimensions(parentSessionId);
+  const parentEvidence = await sessionService.getEvidence(parentSessionId);
+
+  // Map DB rows to workflow types
+  const assumptions: AssumptionData[] = parentAssumptions.map((a) => ({
+    content: a.content,
+    type: a.type as "factual" | "judgmental",
+    importance: a.importance as "high" | "medium" | "low",
+    order: a.order,
+  }));
+
+  const dimensions: DimensionData[] = parentDimensions.map((d) => ({
+    name: d.name,
+    coreQuestion: d.coreQuestion,
+    counterQuestion: d.counterQuestion,
+    keywords: d.keywords as { zh: string[]; en: string[] },
+    relatedAssumptionIndices: (d.assumptionIds ?? []).map(Number),
+  }));
+
+  const evidence: EvidenceData[] = parentEvidence.map((e) => ({
+    dimensionId: e.dimensionId,
+    url: e.url,
+    title: e.title ?? "",
+    sourceName: e.sourceName ?? "",
+    sourceType: e.sourceType,
+    credibility: e.credibility,
+    publishedDate: e.publishedDate ?? undefined,
+    language: e.language as "zh" | "en",
+    keyExcerpt: e.keyExcerpt,
+    relationship: e.relationship,
+    timelinessRisk: e.timelinessRisk ?? false,
+    searchQuery: e.searchQuery,
+    searchRound: e.searchRound,
+  }));
+
+  let initialState: string;
+  let contextEvidence: EvidenceData[];
+  let contextDimensions: DimensionData[];
+  let targetedDimensions: string[] | undefined;
+
+  if (iterationType === "deep_dive") {
+    // Reuse all parent data, start from retrieval with targeted dimension
+    initialState = "retrieval";
+    contextDimensions = dimensions;
+    contextEvidence = evidence;
+    targetedDimensions = target ? [target] : undefined;
+  } else {
+    // add_dimension: reuse assumptions, start from planning to let LLM add new dimensions
+    initialState = "planning";
+    contextDimensions = [];
+    contextEvidence = [];
+  }
+
+  const context: ResearchContext = {
+    sessionId: childSessionId,
+    input: {
+      originalText: parentInput.originalText,
+      language: parentInput.language,
+    },
+    assumptions,
+    dimensions: contextDimensions,
+    evidence: contextEvidence,
+    crossValidations: [],
+    phases: [],
+    currentPhase: initialState as any,
+    clarificationHistory: [],
+    tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUSD: 0 },
+    searchCallsUsed: 0,
+    selfCheckRetries: 0,
+    targetedDimensions,
+  };
+
+  return { context, initialState };
+}
+
+/**
+ * Create a workflow controller from a pre-built context and initial state.
+ * Used for iterate workflows that start from a mid-pipeline state.
+ */
+export function createWorkflowControllerFromContext(
+  sessionId: string,
+  context: ResearchContext,
+  initialState: string,
+  llmProvider: LLMProvider,
+  llmModel: string,
+  searchDeps?: SearchDeps,
+) {
+  const workflowDeps = createWorkflowDeps(sessionId, llmProvider, llmModel, searchDeps);
+  const machine = createResearchMachine(workflowDeps, initialState);
   const actor = createActor(machine, { input: context });
 
   return {
