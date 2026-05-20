@@ -188,9 +188,43 @@ CREATE TABLE reports (
 -- 索引
 CREATE INDEX idx_sessions_status ON research_sessions(status);
 CREATE INDEX idx_sessions_created ON research_sessions(created_at DESC);
+CREATE INDEX idx_sessions_owner ON research_sessions(owner_token_hash);
+CREATE INDEX idx_sessions_parent ON research_sessions(parent_session_id);
 CREATE INDEX idx_assumptions_session ON assumptions(session_id);
 CREATE INDEX idx_dimensions_session ON dimensions(session_id);
 CREATE INDEX idx_evidence_session ON evidence(session_id);
 CREATE INDEX idx_evidence_dimension ON evidence(dimension_id);
+CREATE INDEX idx_cross_validations_session ON cross_validations(session_id);
+CREATE INDEX idx_cross_validations_dimension ON cross_validations(dimension_id);
 CREATE INDEX idx_reports_session ON reports(session_id);
+
+-- 唯一约束（Phase 6.2 引入，防止并发持久化重复插入）
+CREATE UNIQUE INDEX uq_assumptions_session_order ON assumptions(session_id, "order");
+CREATE UNIQUE INDEX uq_dimensions_session_name  ON dimensions(session_id, name);
 ```
+
+---
+
+## 四、稳定 ID 策略（Phase 6.2 引入）
+
+为避免 `evidence.dimension_id → dimensions.id` 的外键失配，所有实体的主键 ULID 在
+**workflow 内部**首次生成时即被赋予最终值，全链路（API → workflow → DB）共享同一
+ID。具体规则：
+
+| 实体              | 生成位置                                                         |
+| ----------------- | ---------------------------------------------------------------- |
+| Assumption        | `machine.ts` 的 `decomposition.onDone` action                    |
+| Dimension         | `machine.ts` 的 `planning.onDone` action                         |
+| Evidence          | `actors/search-dimensions.ts` 在拼装 `EvidenceData` 时           |
+| CrossValidation   | `machine.ts` 的 `validation.onDone` action                       |
+
+`apps/api/src/services/workflow.service.ts` 中的 `persistState` 改为基于这些稳定 ID
+做 `INSERT ... ON CONFLICT DO UPDATE`：
+
+- 同一 session 多次持久化不再 drop+reinsert，客户端拿到的 `evidence.id` 始终有效。
+- `cross_validations.evidence_ids` 存放真实 evidence 主键，可直接 join。
+- `dimensions` 的 verdict/confidence 通过 `dimension_id` 命中真实行（不再丢失）。
+
+迭代研究（`createIterateContext`）从父会话读取实体时，**保留原 ID** 写入 child
+session 的 context；新生成的实体（add_dimension 模式下的新维度）继续在 onDone 阶段
+分配新 ULID。

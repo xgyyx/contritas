@@ -1,5 +1,5 @@
 import { setup, assign, type AnyEventObject } from "xstate";
-import { MAX_SELF_CHECK_RETRIES, DEFAULT_TOKEN_BUDGET_USD } from "@contritas/shared";
+import { MAX_SELF_CHECK_RETRIES, DEFAULT_TOKEN_BUDGET_USD, generateId } from "@contritas/shared";
 import type {
   ResearchContext,
   ResearchEvent,
@@ -157,7 +157,7 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
               target: "budgetExceeded",
               actions: [
                 assign({
-                  assumptions: ({ event }) => event.output.assumptions,
+                  assumptions: ({ event }) => event.output.assumptions.map((a: any) => ({ ...a, id: a.id ?? generateId() })),
                   tokenUsage: ({ context, event }) => ({
                     inputTokens: context.tokenUsage.inputTokens + event.output.usage.inputTokens,
                     outputTokens: context.tokenUsage.outputTokens + event.output.usage.outputTokens,
@@ -178,7 +178,7 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
               target: "planning",
               actions: [
                 assign({
-                  assumptions: ({ event }) => event.output.assumptions,
+                  assumptions: ({ event }) => event.output.assumptions.map((a: any) => ({ ...a, id: a.id ?? generateId() })),
                   tokenUsage: ({ context, event }) => ({
                     inputTokens: context.tokenUsage.inputTokens + event.output.usage.inputTokens,
                     outputTokens: context.tokenUsage.outputTokens + event.output.usage.outputTokens,
@@ -224,7 +224,7 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
               target: "budgetExceeded",
               actions: [
                 assign({
-                  dimensions: ({ event }) => event.output.dimensions,
+                  dimensions: ({ event }) => event.output.dimensions.map((d: any) => ({ ...d, id: d.id ?? generateId() })),
                   complexity: ({ event }) => event.output.complexity,
                   tokenUsage: ({ context, event }) => ({
                     inputTokens: context.tokenUsage.inputTokens + event.output.usage.inputTokens,
@@ -246,7 +246,7 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
               target: "retrieval",
               actions: [
                 assign({
-                  dimensions: ({ event }) => event.output.dimensions,
+                  dimensions: ({ event }) => event.output.dimensions.map((d: any) => ({ ...d, id: d.id ?? generateId() })),
                   complexity: ({ event }) => event.output.complexity,
                   tokenUsage: ({ context, event }) => ({
                     inputTokens: context.tokenUsage.inputTokens + event.output.usage.inputTokens,
@@ -308,14 +308,6 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
                 },
                 searchCallsUsed: ({ context, event }) =>
                   context.searchCallsUsed + (event.output as RetrievalResult).searchCallsUsed,
-                dimensionIdMap: ({ context, event }) => {
-                  const result = event.output as RetrievalResult;
-                  // On first run, store the full dimensionId map; on retry, keep existing
-                  if (context.dimensionIdMap && context.selfCheckRetries > 0) {
-                    return context.dimensionIdMap;
-                  }
-                  return result.dimensionResults.map((r) => r.dimensionId);
-                },
                 targetedDimensions: () => undefined,
                 phases: ({ context }) => [
                   ...context.phases.filter((p) => p.id !== "retrieval"),
@@ -356,7 +348,7 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
               target: "budgetExceeded",
               actions: [
                 assign({
-                  crossValidations: ({ event }) => (event.output as CrossValidationResult).crossValidations,
+                  crossValidations: ({ event }) => (event.output as CrossValidationResult).crossValidations.map((cv) => ({ ...cv, id: generateId() })),
                   tokenUsage: ({ context, event }) => {
                     const usage = (event.output as CrossValidationResult).usage;
                     return {
@@ -380,7 +372,7 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
               target: "synthesis",
               actions: [
                 assign({
-                  crossValidations: ({ event }) => (event.output as CrossValidationResult).crossValidations,
+                  crossValidations: ({ event }) => (event.output as CrossValidationResult).crossValidations.map((cv) => ({ ...cv, id: generateId() })),
                   tokenUsage: ({ context, event }) => {
                     const usage = (event.output as CrossValidationResult).usage;
                     return {

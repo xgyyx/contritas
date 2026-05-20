@@ -31,7 +31,7 @@ export const crossValidate = fromPromise<
       items
         .map(
           (e, i) =>
-            `  [${i + 1}] "${e.sourceName}" (credibility: ${e.credibility}, date: ${e.publishedDate ?? "unknown"})` +
+            `  [${i + 1}] id=${e.id} "${e.sourceName}" (credibility: ${e.credibility}, date: ${e.publishedDate ?? "unknown"})` +
             `\n      Excerpt: ${e.keyExcerpt}` +
             `\n      URL: ${e.url}`
         )
@@ -64,12 +64,17 @@ For each dimension, analyze consistency and assign a verdict. Return the dimensi
     temperature: 0,
   });
 
-  // Map LLM output to CrossValidationData, ensuring all evidenceIds are included
+  // Map LLM output to CrossValidationData. Use only real evidence ids: filter out anything the LLM
+  // hallucinated, and fall back to the full set of real ids when the LLM returns nothing.
+  // (id is assigned later in the validation onDone action of the state machine.)
   const crossValidations = data.validations.map((v) => {
     const dimEvidence = evidenceByDimension.get(v.dimensionId) ?? [];
+    const realIds = new Set(dimEvidence.map((e) => e.id));
+    const filteredIds = v.evidenceIds.filter((id) => realIds.has(id));
+    const evidenceIds = filteredIds.length > 0 ? filteredIds : dimEvidence.map((e) => e.id);
     return {
       dimensionId: v.dimensionId,
-      evidenceIds: v.evidenceIds.length > 0 ? v.evidenceIds : dimEvidence.map((_, i) => `${v.dimensionId}:${i}`),
+      evidenceIds,
       consistent: v.consistent,
       contradictionDescription: v.contradictionDescription,
       contradictionReason: v.contradictionReason,

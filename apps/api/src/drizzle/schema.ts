@@ -7,6 +7,7 @@ import {
   jsonb,
   index,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // ══════════════════════════════════════════
@@ -33,6 +34,7 @@ export const researchSessions = pgTable(
     index("idx_sessions_status").on(table.status),
     index("idx_sessions_created").on(table.createdAt),
     index("idx_sessions_owner").on(table.ownerTokenHash),
+    index("idx_sessions_parent").on(table.parentSessionId),
   ]
 );
 
@@ -55,6 +57,7 @@ export const assumptions = pgTable(
   },
   (table) => [
     index("idx_assumptions_session").on(table.sessionId),
+    uniqueIndex("uq_assumptions_session_order").on(table.sessionId, table.order),
   ]
 );
 
@@ -84,6 +87,7 @@ export const dimensions = pgTable(
   },
   (table) => [
     index("idx_dimensions_session").on(table.sessionId),
+    uniqueIndex("uq_dimensions_session_name").on(table.sessionId, table.name),
   ]
 );
 
@@ -137,7 +141,11 @@ export const crossValidations = pgTable(
     consistent: boolean("consistent").notNull(),
     contradictionDescription: text("contradiction_description"),
     contradictionReason: text("contradiction_reason"), // source_bias | time_difference | scope_mismatch | methodology_difference
-  }
+  },
+  (table) => [
+    index("idx_cross_validations_session").on(table.sessionId),
+    index("idx_cross_validations_dimension").on(table.dimensionId),
+  ]
 );
 
 // ══════════════════════════════════════════

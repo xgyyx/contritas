@@ -43,6 +43,7 @@ describe("Cross-Validate Actor", () => {
   it("returns consistent validation for agreeing evidence", async () => {
     const evidence: EvidenceData[] = [
       {
+        id: "e1",
         dimensionId: "dim-1",
         url: "https://a.com",
         title: "A",
@@ -57,6 +58,7 @@ describe("Cross-Validate Actor", () => {
         searchRound: 1,
       },
       {
+        id: "e2",
         dimensionId: "dim-1",
         url: "https://b.com",
         title: "B",
@@ -99,6 +101,7 @@ describe("Cross-Validate Actor", () => {
   it("returns inconsistent validation for contradictory evidence", async () => {
     const evidence: EvidenceData[] = [
       {
+        id: "e1",
         dimensionId: "dim-2",
         url: "https://a.com",
         title: "A",
@@ -113,6 +116,7 @@ describe("Cross-Validate Actor", () => {
         searchRound: 1,
       },
       {
+        id: "e2",
         dimensionId: "dim-2",
         url: "https://b.com",
         title: "B",
@@ -157,6 +161,7 @@ describe("Cross-Validate Actor", () => {
   it("handles multiple dimensions", async () => {
     const evidence: EvidenceData[] = [
       {
+        id: "ea-1",
         dimensionId: "dim-a",
         url: "https://a.com",
         title: "A",
@@ -171,6 +176,7 @@ describe("Cross-Validate Actor", () => {
         searchRound: 1,
       },
       {
+        id: "eb-1",
         dimensionId: "dim-b",
         url: "https://b.com",
         title: "B",

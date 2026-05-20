@@ -13,7 +13,7 @@
 | Phase 3 | 分析与报告     | ✅ 已完成 | [phase3-progress.md](./phase3-progress.md) |
 | Phase 4 | 前端           | ✅ 已完成 | [phase4-progress.md](./phase4-progress.md) |
 | Phase 5 | 优化与扩展     | ✅ 已完成 | [phase5-progress.md](./phase5-progress.md) |
-| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — 6.1 ✅；6.2–6.10 待办 |
+| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — 6.1 ✅ / 6.2 ✅；6.3–6.10 待办 |
 
 ---
 
@@ -75,15 +75,15 @@
 - [x] Prompt injection 缓解：`wrapExternalContent` + system prompt 安全条款
 - [x] `ANTHROPIC_BASE_URL` 非官方域名时启动 warn 日志
 
-#### 6.2 数据一致性与持久化正确性
-- [ ] **[Critical]** 修复 `evidence.dimension_id` 与 `dimensions.id` 的 FK 语义（workflow 端与 persist 端各自 `generateId()` 导致 FK 永不对齐）
-- [ ] **[Critical]** 重构 `persistState`：废弃「先 delete 后 insert + 新 ULID」模式，改用稳定 ID upsert
-- [ ] 修复 `synthesize-report.ts` 按 `evidenceByDimension` 插入顺序定位维度的隐式 bug（维度名/证据错位）
-- [ ] `cross-validate.ts` 在 LLM 未返回 `evidenceIds` 时停止构造 `${dimensionId}:${i}` 假 ID
-- [ ] 增加 DB 唯一约束：`(session_id, order)` 对 assumptions、`(session_id, name)` 对 dimensions
-- [ ] 补缺索引：`cross_validations(session_id)`、`cross_validations(dimension_id)`、`research_sessions(parent_session_id)`
-- [ ] `persistState` 失败不再静默 `console.error`，需上报指标 + 让作业感知
-- [ ] Token Usage 每个 phase 完成后实时更新（非仅 persistState 末尾）
+#### 6.2 数据一致性与持久化正确性 ✅
+- [x] **[Critical]** 修复 `evidence.dimension_id` 与 `dimensions.id` 的 FK 语义：workflow 内部第一次生成实体时即赋稳定 ULID，全链路共享
+- [x] **[Critical]** 重构 `persistState`：删除「先 delete 后 insert」改用 `INSERT ... ON CONFLICT DO UPDATE`
+- [x] 修复 `synthesize-report.ts` 改用 `dim.id` 直接索引维度（不再依赖 Map 插入顺序）
+- [x] `cross-validate.ts` prompt 渲染真实 `id=...`，post-processing 过滤 LLM 幻觉，无返回时退化为该维度全部真实 id
+- [x] DB 唯一约束：`uq_assumptions_session_order`、`uq_dimensions_session_name`
+- [x] 索引补全：`idx_cross_validations_session/dimension`、`idx_sessions_parent`
+- [x] `persistState` 失败发 SSE `error` 事件 + `updateSessionStatus(failed)`
+- [x] Token Usage / searchCallsUsed / phases 在 `persistState` 起始处先写入，确保失败也能记录成本
 
 #### 6.3 Worker 与队列稳定性
 - [ ] 修复 `handleAwaitingClarification` 的双 message handler + cleanup 不触发缺陷

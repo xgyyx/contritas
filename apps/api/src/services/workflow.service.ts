@@ -199,62 +199,89 @@ export function createWorkflowDeps(
     },
     persistState: async (context: ResearchContext) => {
       try {
+        // Record phases / search calls / token usage early so cost is captured even if
+        // entity persistence fails partway through (6.2.8).
         await sessionService.updateSessionPhases(sessionId, context.phases);
-
-        // Delete in FK-safe order: cross_validations → evidence → dimensions → assumptions
-        // Then re-insert. This makes persistState idempotent on BullMQ retries.
-        if (context.crossValidations.length > 0 || context.evidence.length > 0 || context.dimensions.length > 0 || context.assumptions.length > 0) {
-          await db.delete(schema.crossValidations).where(eq(schema.crossValidations.sessionId, sessionId));
-          await db.delete(schema.evidence).where(eq(schema.evidence.sessionId, sessionId));
-          await db.delete(schema.dimensions).where(eq(schema.dimensions.sessionId, sessionId));
-          await db.delete(schema.assumptions).where(eq(schema.assumptions.sessionId, sessionId));
+        if (context.searchCallsUsed > 0) {
+          await sessionService.updateSearchCallsUsed(sessionId, context.searchCallsUsed);
+        }
+        if (context.tokenUsage.totalTokens > 0) {
+          await sessionService.updateTokenUsage(sessionId, context.tokenUsage);
         }
 
-        // Persist assumptions
-        if (context.assumptions.length > 0) {
-          for (const assumption of context.assumptions) {
-            const id = generateId();
-            await db
-              .insert(schema.assumptions)
-              .values({
-                id,
-                sessionId,
+        // Persist assumptions (upsert by stable id — no more delete-then-insert)
+        for (const assumption of context.assumptions) {
+          await db
+            .insert(schema.assumptions)
+            .values({
+              id: assumption.id,
+              sessionId,
+              content: assumption.content,
+              type: assumption.type,
+              importance: assumption.importance,
+              order: assumption.order,
+            })
+            .onConflictDoUpdate({
+              target: schema.assumptions.id,
+              set: {
                 content: assumption.content,
                 type: assumption.type,
                 importance: assumption.importance,
                 order: assumption.order,
-              });
-          }
+              },
+            });
         }
 
-        // Persist dimensions
-        if (context.dimensions.length > 0) {
-          for (const dimension of context.dimensions) {
-            const id = generateId();
-            await db
-              .insert(schema.dimensions)
-              .values({
-                id,
-                sessionId,
+        // Persist dimensions (upsert by stable id)
+        for (const dimension of context.dimensions) {
+          await db
+            .insert(schema.dimensions)
+            .values({
+              id: dimension.id,
+              sessionId,
+              name: dimension.name,
+              coreQuestion: dimension.coreQuestion,
+              counterQuestion: dimension.counterQuestion,
+              assumptionIds: dimension.relatedAssumptionIndices.map(String),
+              keywords: dimension.keywords,
+              status: "pending",
+            })
+            .onConflictDoUpdate({
+              target: schema.dimensions.id,
+              set: {
                 name: dimension.name,
                 coreQuestion: dimension.coreQuestion,
                 counterQuestion: dimension.counterQuestion,
                 assumptionIds: dimension.relatedAssumptionIndices.map(String),
                 keywords: dimension.keywords,
-                status: "pending",
-              });
-          }
+              },
+            });
         }
 
-        // Persist evidence
-        if (context.evidence.length > 0) {
-          for (const ev of context.evidence) {
-            const id = generateId();
-            await db
-              .insert(schema.evidence)
-              .values({
-                id,
-                sessionId,
+        // Persist evidence (upsert by stable id; FK to dimensions.id now aligns)
+        for (const ev of context.evidence) {
+          await db
+            .insert(schema.evidence)
+            .values({
+              id: ev.id,
+              sessionId,
+              dimensionId: ev.dimensionId,
+              searchQuery: ev.searchQuery,
+              searchRound: ev.searchRound,
+              url: ev.url,
+              title: ev.title,
+              sourceName: ev.sourceName,
+              sourceType: ev.sourceType,
+              credibility: ev.credibility,
+              publishedDate: ev.publishedDate,
+              language: ev.language,
+              keyExcerpt: ev.keyExcerpt,
+              relationship: ev.relationship,
+              timelinessRisk: ev.timelinessRisk,
+            })
+            .onConflictDoUpdate({
+              target: schema.evidence.id,
+              set: {
                 dimensionId: ev.dimensionId,
                 searchQuery: ev.searchQuery,
                 searchRound: ev.searchRound,
@@ -268,46 +295,53 @@ export function createWorkflowDeps(
                 keyExcerpt: ev.keyExcerpt,
                 relationship: ev.relationship,
                 timelinessRisk: ev.timelinessRisk,
-              });
-          }
+              },
+            });
         }
 
-        // Persist cross-validations
-        if (context.crossValidations.length > 0) {
-          for (const cv of context.crossValidations) {
-            const id = generateId();
-            await db
-              .insert(schema.crossValidations)
-              .values({
-                id,
-                sessionId,
+        // Persist cross-validations (upsert by stable id)
+        for (const cv of context.crossValidations) {
+          await db
+            .insert(schema.crossValidations)
+            .values({
+              id: cv.id,
+              sessionId,
+              dimensionId: cv.dimensionId,
+              evidenceIds: cv.evidenceIds,
+              consistent: cv.consistent,
+              contradictionDescription: cv.contradictionDescription,
+              contradictionReason: cv.contradictionReason,
+            })
+            .onConflictDoUpdate({
+              target: schema.crossValidations.id,
+              set: {
                 dimensionId: cv.dimensionId,
                 evidenceIds: cv.evidenceIds,
                 consistent: cv.consistent,
                 contradictionDescription: cv.contradictionDescription,
                 contradictionReason: cv.contradictionReason,
-              });
-          }
-
-          // Update dimension verdict/confidence from cross-validation results
-          for (const cv of context.crossValidations) {
-            await db
-              .update(schema.dimensions)
-              .set({
-                verdict: cv.verdict,
-                confidence: cv.confidence,
-              })
-              .where(eq(schema.dimensions.id, cv.dimensionId));
-          }
+              },
+            });
         }
 
-        // Persist report if it exists (upsert by session+version unique constraint)
+        // Update dimension verdict/confidence from cross-validation results.
+        // Now that dimension ids are stable, this reliably hits the right rows.
+        for (const cv of context.crossValidations) {
+          await db
+            .update(schema.dimensions)
+            .set({
+              verdict: cv.verdict,
+              confidence: cv.confidence,
+            })
+            .where(eq(schema.dimensions.id, cv.dimensionId));
+        }
+
+        // Persist report (upsert by (sessionId, version) so self-check retries can refresh it)
         if (context.report) {
-          const reportId = generateId();
           await db
             .insert(schema.reports)
             .values({
-              id: reportId,
+              id: generateId(),
               sessionId,
               version: 1,
               markdownContent: context.report.markdownContent,
@@ -316,20 +350,32 @@ export function createWorkflowDeps(
               charCount: context.report.charCount,
               sourceCount: context.report.sourceCount,
             })
-            .onConflictDoNothing();
-        }
-
-        // Update search calls used
-        if (context.searchCallsUsed > 0) {
-          await sessionService.updateSearchCallsUsed(sessionId, context.searchCallsUsed);
-        }
-
-        // Persist token usage
-        if (context.tokenUsage.totalTokens > 0) {
-          await sessionService.updateTokenUsage(sessionId, context.tokenUsage);
+            .onConflictDoUpdate({
+              target: [schema.reports.sessionId, schema.reports.version],
+              set: {
+                markdownContent: context.report.markdownContent,
+                overallScore: context.report.overallScore,
+                overallVerdict: context.report.overallVerdict,
+                charCount: context.report.charCount,
+                sourceCount: context.report.sourceCount,
+                generatedAt: new Date(),
+              },
+            });
         }
       } catch (err) {
+        // 6.2.7: persistState failures are no longer silently swallowed. We surface them via
+        // SSE and mark the session failed so the UI can react. We still don't rethrow because
+        // persistState is invoked fire-and-forget from the state machine; full BullMQ
+        // failure semantics are 6.3's responsibility.
+        const message = err instanceof Error ? err.message : String(err);
         console.error(`Failed to persist state for session ${sessionId}:`, err);
+        await publishEvent(sessionId, {
+          type: "error",
+          message: `Persistence failed: ${message}`,
+          recoverable: false,
+          timestamp: new Date().toISOString(),
+        }).catch(() => {});
+        await sessionService.updateSessionStatus(sessionId, "failed").catch(() => {});
       }
     },
   };
@@ -440,8 +486,10 @@ export async function createIterateContext(
   const parentDimensions = await sessionService.getDimensions(parentSessionId);
   const parentEvidence = await sessionService.getEvidence(parentSessionId);
 
-  // Map DB rows to workflow types
+  // Map DB rows to workflow types — preserve stable ids so iterate sessions write back to
+  // the same rows (FK from evidence → dimensions stays valid).
   const assumptions: AssumptionData[] = parentAssumptions.map((a) => ({
+    id: a.id,
     content: a.content,
     type: a.type as "factual" | "judgmental",
     importance: a.importance as "high" | "medium" | "low",
@@ -449,6 +497,7 @@ export async function createIterateContext(
   }));
 
   const dimensions: DimensionData[] = parentDimensions.map((d) => ({
+    id: d.id,
     name: d.name,
     coreQuestion: d.coreQuestion,
     counterQuestion: d.counterQuestion,
@@ -457,6 +506,7 @@ export async function createIterateContext(
   }));
 
   const evidence: EvidenceData[] = parentEvidence.map((e) => ({
+    id: e.id,
     dimensionId: e.dimensionId,
     url: e.url,
     title: e.title ?? "",

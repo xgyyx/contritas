@@ -44,12 +44,11 @@ export interface ResearchContext {
   searchCallsUsed: number;
   selfCheckRetries: number;
   targetedDimensions?: string[];
-  /** Maps dimension index to its assigned dimensionId from retrieval */
-  dimensionIdMap?: string[];
   error?: string;
 }
 
 export interface AssumptionData {
+  id: string;
   content: string;
   type: "factual" | "judgmental";
   importance: "high" | "medium" | "low";
@@ -57,6 +56,7 @@ export interface AssumptionData {
 }
 
 export interface DimensionData {
+  id: string;
   name: string;
   coreQuestion: string;
   counterQuestion: string;
@@ -65,6 +65,7 @@ export interface DimensionData {
 }
 
 export interface EvidenceData {
+  id: string;
   dimensionId: string;
   url: string;
   title: string;
@@ -146,13 +147,18 @@ export interface ValidateInputResult {
   output: Phase0Output;
 }
 
+// Decompose / plan / cross-validate actors return entities without an id; the state machine
+// assigns stable ids in their onDone actions before storing them on the context.
+export type AssumptionDraft = Omit<AssumptionData, "id">;
+export type DimensionDraft = Omit<DimensionData, "id">;
+
 export interface DecomposeResult {
-  assumptions: AssumptionData[];
+  assumptions: AssumptionDraft[];
   usage: TokenUsage;
 }
 
 export interface PlanResult {
-  dimensions: DimensionData[];
+  dimensions: DimensionDraft[];
   complexity: ComplexityLevel;
   estimatedMinutes: number;
   usage: TokenUsage;
@@ -173,6 +179,7 @@ export interface RetrievalResult {
 // ══════════════════════════════════════════
 
 export interface CrossValidationData {
+  id: string;
   dimensionId: string;
   evidenceIds: string[];
   consistent: boolean;
@@ -182,8 +189,10 @@ export interface CrossValidationData {
   confidence: Confidence;
 }
 
+export type CrossValidationDraft = Omit<CrossValidationData, "id">;
+
 export interface CrossValidationResult {
-  crossValidations: CrossValidationData[];
+  crossValidations: CrossValidationDraft[];
   usage: TokenUsage;
 }
 

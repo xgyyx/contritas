@@ -59,6 +59,7 @@ When evidence is contradictory, identify the most likely cause:
 - If a dimension has fewer than 2 evidence items: mark as consistent (no contradiction possible), but set confidence to "low"
 - If all evidence "qualifies" the proposition without clear support or weakening: verdict is "disputed", confidence based on source quality
 - Always include ALL evidence IDs for the dimension in the evidenceIds array (not just contradicting ones)
+- The evidenceIds you return MUST be picked from the \`id=...\` value shown next to each evidence item in the input. Do NOT invent new ids or use any other format — any id you return that does not appear in the input will be discarded.
 
 ## Output Format
 

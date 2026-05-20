@@ -103,10 +103,11 @@ function createFullContext(): ResearchContext {
       language: "zh",
     },
     assumptions: [
-      { content: "Market is large", type: "factual", importance: "high", order: 1 },
+      { id: "a1", content: "Market is large", type: "factual", importance: "high", order: 1 },
     ],
     dimensions: [
       {
+        id: "dim-1",
         name: "市场规模",
         coreQuestion: "市场是否足够大？",
         counterQuestion: "市场是否已经饱和？",
@@ -116,6 +117,7 @@ function createFullContext(): ResearchContext {
     ],
     evidence: [
       {
+        id: "e1",
         dimensionId: "dim-1",
         url: "https://gov.cn/1",
         title: "Gov Data",
@@ -130,6 +132,7 @@ function createFullContext(): ResearchContext {
         searchRound: 1,
       },
       {
+        id: "e2",
         dimensionId: "dim-1",
         url: "https://report.com/1",
         title: "Report",
@@ -144,6 +147,7 @@ function createFullContext(): ResearchContext {
         searchRound: 1,
       },
       {
+        id: "e3",
         dimensionId: "dim-1",
         url: "https://paper.com/1",
         title: "Academic",
@@ -160,6 +164,7 @@ function createFullContext(): ResearchContext {
     ],
     crossValidations: [
       {
+        id: "cv-1",
         dimensionId: "dim-1",
         evidenceIds: ["e1", "e2", "e3"],
         consistent: true,

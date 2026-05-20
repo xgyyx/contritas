@@ -47,22 +47,17 @@ export const searchDimensions = fromPromise(
     const dimensionResults: RetrievalResult["dimensionResults"] = [];
 
     // If targetedDimensions is set (self-check retry), only re-search those dimensions.
-    // Use dimensionIdMap (set after first retrieval) to match dimensionIds back to dimensions.
+    // Dimensions now carry stable ids assigned at planning, so we can filter directly.
     const targetDimIds = context.targetedDimensions && context.targetedDimensions.length > 0
       ? new Set(context.targetedDimensions)
       : null;
 
-    let dimensionsToSearch: { dim: typeof context.dimensions[number]; existingId?: string }[];
-    if (targetDimIds && context.dimensionIdMap) {
-      dimensionsToSearch = context.dimensions
-        .map((dim, idx) => ({ dim, existingId: context.dimensionIdMap![idx] }))
-        .filter(({ existingId }) => existingId != null && targetDimIds.has(existingId));
-    } else {
-      dimensionsToSearch = context.dimensions.map((dim) => ({ dim }));
-    }
+    const dimensionsToSearch = targetDimIds
+      ? context.dimensions.filter((d) => targetDimIds.has(d.id))
+      : context.dimensions;
 
-    const dimensionInputs: DimensionSearchInput[] = dimensionsToSearch.map(({ dim, existingId }) => ({
-      dimensionId: existingId ?? generateId(),
+    const dimensionInputs: DimensionSearchInput[] = dimensionsToSearch.map((dim) => ({
+      dimensionId: dim.id,
       sessionId: context.sessionId,
       name: dim.name,
       coreQuestion: dim.coreQuestion,
@@ -83,6 +78,7 @@ export const searchDimensions = fromPromise(
 
         for (const candidate of result.evidence) {
           allEvidence.push({
+            id: generateId(),
             dimensionId: result.dimensionId,
             url: candidate.url,
             title: candidate.title,

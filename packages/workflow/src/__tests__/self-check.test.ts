@@ -10,6 +10,7 @@ function createMinimalContext(overrides?: Partial<ResearchContext>): ResearchCon
     dimensions: [],
     evidence: [
       {
+        id: "ev-1",
         dimensionId: "dim-1",
         url: "https://example.com/1",
         title: "Source 1",
@@ -25,6 +26,7 @@ function createMinimalContext(overrides?: Partial<ResearchContext>): ResearchCon
         searchRound: 1,
       },
       {
+        id: "ev-2",
         dimensionId: "dim-1",
         url: "https://example.com/2",
         title: "Source 2",
@@ -40,6 +42,7 @@ function createMinimalContext(overrides?: Partial<ResearchContext>): ResearchCon
         searchRound: 1,
       },
       {
+        id: "ev-3",
         dimensionId: "dim-1",
         url: "https://example.com/3",
         title: "Source 3",
@@ -162,6 +165,7 @@ describe("Self-Check", () => {
     const context = createMinimalContext({
       evidence: [
         {
+          id: "ev-low-1",
           dimensionId: "dim-1",
           url: "https://example.com/1",
           title: "Source 1",
@@ -176,6 +180,7 @@ describe("Self-Check", () => {
           searchRound: 1,
         },
         {
+          id: "ev-low-2",
           dimensionId: "dim-1",
           url: "https://example.com/2",
           title: "Source 2",

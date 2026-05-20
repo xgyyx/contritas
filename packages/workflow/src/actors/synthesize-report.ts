@@ -49,8 +49,12 @@ export const synthesizeReport = fromPromise<
     evidenceByDimension.set(ev.dimensionId, list);
   }
 
-  const dimensionsText = Array.from(evidenceByDimension.entries())
-    .map(([dimId, evidenceList]) => {
+  // Iterate dimensions in their canonical order (from planning) so report sections are stable
+  // and tied directly to dimension.id rather than evidence insertion order.
+  const dimensionsText = context.dimensions
+    .map((dimData) => {
+      const dimId = dimData.id;
+      const evidenceList = evidenceByDimension.get(dimId) ?? [];
       const cv = cvMap.get(dimId);
       const verdictStr = cv
         ? `Verdict: ${cv.verdict}, Confidence: ${cv.confidence}, Consistent: ${cv.consistent}`
@@ -74,17 +78,10 @@ export const synthesizeReport = fromPromise<
         })
         .join("\n");
 
-      // Find dimension name from context.dimensions by matching position with evidenceByDimension order
-      const dimIndex = Array.from(evidenceByDimension.keys()).indexOf(dimId);
-      const dimData = context.dimensions[dimIndex];
-      const dimName = dimData?.name ?? dimId;
-      const coreQuestion = dimData?.coreQuestion ?? "";
-      const counterQuestion = dimData?.counterQuestion ?? "";
-
       return (
-        `### Dimension: ${dimName} (ID: ${dimId})\n` +
-        `Core Question: ${coreQuestion}\n` +
-        `Counter Question: ${counterQuestion}\n` +
+        `### Dimension: ${dimData.name} (ID: ${dimId})\n` +
+        `Core Question: ${dimData.coreQuestion}\n` +
+        `Counter Question: ${dimData.counterQuestion}\n` +
         `${verdictStr}${contradictionStr}\n\n` +
         `Evidence (${evidenceList.length} items):\n${evidenceStr}`
       );
