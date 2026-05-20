@@ -3,8 +3,10 @@ import { getRedis, closeRedis } from "./lib/redis.js";
 import { processResearchJob } from "./jobs/research.job.js";
 import type { ResearchJobData } from "./lib/queue.js";
 import { WORKER_LOCK_DURATION_MS } from "@contritas/shared";
+import { createLogger } from "./lib/logger.js";
 
-console.log("[Worker] Starting Contritas research worker...");
+const log = createLogger("worker");
+log.info("starting Contritas research worker");
 
 const worker = new Worker<ResearchJobData>(
   "research",
@@ -19,27 +21,30 @@ const worker = new Worker<ResearchJobData>(
 );
 
 worker.on("completed", (job) => {
-  console.log(`[Worker] Job ${job.id} completed`);
+  log.info({ jobId: job.id, sessionId: job.data?.sessionId }, "job completed");
 });
 
 worker.on("failed", (job, err) => {
-  console.error(`[Worker] Job ${job?.id} failed:`, err.message);
+  log.error(
+    { jobId: job?.id, sessionId: job?.data?.sessionId, err: err.message },
+    "job failed"
+  );
 });
 
 worker.on("error", (err) => {
-  console.error("[Worker] Worker error:", err);
+  log.error({ err }, "worker error");
 });
 
 // Graceful shutdown
 async function shutdown(signal: string) {
-  console.log(`[Worker] Received ${signal}, shutting down...`);
+  log.info({ signal }, "received signal, shutting down");
   await worker.close();
   await closeRedis();
-  console.log("[Worker] Shutdown complete.");
+  log.info("shutdown complete");
   process.exit(0);
 }
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-console.log("[Worker] Worker ready, waiting for jobs...");
+log.info("worker ready, waiting for jobs");

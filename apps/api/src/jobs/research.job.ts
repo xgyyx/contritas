@@ -4,15 +4,23 @@ import type { ResearchJobData } from "../lib/queue.js";
 import * as sessionService from "../services/session.service.js";
 import { createWorkflowController, createWorkflowControllerFromContext, createIterateContext, buildSearchDeps } from "../services/workflow.service.js";
 import { createRedisConnection } from "../lib/redis.js";
+import { createLogger, type Logger } from "../lib/logger.js";
+import { loadConfig } from "../config.js";
 
 const CLARIFICATION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const LOCK_EXTEND_INTERVAL_MS = 15_000;
 const LOCK_EXTEND_DURATION_MS = 60_000;
 
 export async function processResearchJob(job: Job<ResearchJobData>): Promise<void> {
-  const { sessionId, parentSessionId, iterationType, target, details } = job.data;
+  const { sessionId, parentSessionId, iterationType, target, details, requestId } = job.data;
+  const log = createLogger("worker.job", {
+    jobId: job.id,
+    sessionId,
+    parentSessionId,
+    requestId,
+  });
 
-  console.log(`[Worker] Processing research job: ${sessionId}${parentSessionId ? ` (iterate from ${parentSessionId})` : ""}`);
+  log.info("processing research job");
 
   // Load session from DB
   const session = await sessionService.getSession(sessionId);
@@ -21,13 +29,12 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
   }
 
   if (session.status === "cancelled") {
-    console.log(`[Worker] Session ${sessionId} was cancelled, skipping`);
+    log.info("session was cancelled, skipping");
     return;
   }
 
   // Create LLM provider
   const sessionConfig = session.config as { llmProvider: string; llmModel: string };
-  const { loadConfig } = await import("../config.js");
   const appConfig = loadConfig();
 
   const llmProvider = createProvider(appConfig.llmProvider);
@@ -77,12 +84,12 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
         : "completed";
 
       await sessionService.updateSessionStatus(sessionId, finalStatus as "completed" | "failed" | "cancelled");
-      console.log(`[Worker] Session ${sessionId} finished with state: ${result.finalState}`);
+      log.info({ finalState: result.finalState }, "session finished");
       resolve();
     });
 
     controller.onError((err) => {
-      console.error(`[Worker] Session ${sessionId} error:`, err);
+      log.error({ err }, "session error");
       reject(err);
     });
   });
@@ -98,9 +105,9 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
     const state = snapshot.value;
     if (state === "awaitingClarification" && prevState !== "awaitingClarification") {
       if (!clarificationInFlight) {
-        clarificationInFlight = handleAwaitingClarification(sessionId, controller, job)
+        clarificationInFlight = handleAwaitingClarification(sessionId, controller, job, log)
           .catch((err) => {
-            console.error(`[Worker] Error handling clarification for ${sessionId}:`, err);
+            log.error({ err }, "error handling clarification");
             throw err;
           })
           .finally(() => {
@@ -121,7 +128,8 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
 async function handleAwaitingClarification(
   sessionId: string,
   controller: ReturnType<typeof createWorkflowController>,
-  job: Job
+  job: Job,
+  log: Logger
 ): Promise<void> {
   // BullMQ uses the job token to authenticate lock extension. Without it the
   // lock will silently fail to extend and the job becomes eligible for stalled
@@ -131,6 +139,7 @@ async function handleAwaitingClarification(
     throw new Error(`[Worker] Missing job token for session ${sessionId}`);
   }
 
+  log.debug("awaiting clarification");
   await sessionService.updateSessionStatus(sessionId, "awaiting_input");
 
   const subscriber = createRedisConnection();

@@ -13,7 +13,7 @@
 | Phase 3 | 分析与报告     | ✅ 已完成 | [phase3-progress.md](./phase3-progress.md) |
 | Phase 4 | 前端           | ✅ 已完成 | [phase4-progress.md](./phase4-progress.md) |
 | Phase 5 | 优化与扩展     | ✅ 已完成 | [phase5-progress.md](./phase5-progress.md) |
-| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — 6.1 ✅ / 6.2 ✅ / 6.4 ✅；6.3 部分（核心 clarification）✅；6.8 部分（容器加固）✅；6.5/6.6/6.7/6.9/6.10 待办 |
+| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — Sprint A ✅（6.1/6.2/6.4 + 6.3 核心 + 6.8 容器加固）；Sprint B ✅（6.6 pino + correlation id + errorId / 6.9.1 CI / 6.7.1 API 集成 + 6.7.4 e2e）；Sprint C 待办（6.5 LLM 可靠性与成本）；6.10 文档同步 / 6.7 剩余 / 6.9 剩余 待办 |
 
 ---
 

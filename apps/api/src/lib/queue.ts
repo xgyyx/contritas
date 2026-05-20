@@ -7,6 +7,12 @@ export interface ResearchJobData {
   iterationType?: "deep_dive" | "add_dimension";
   target?: string;
   details?: string;
+  /**
+   * The X-Request-Id (or our generated request id) of the API request that
+   * enqueued this job. Worker logs include it so a single user action can be
+   * correlated across api → worker → workflow logs.
+   */
+  requestId?: string;
 }
 
 let researchQueue: Queue<ResearchJobData> | null = null;

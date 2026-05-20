@@ -7,6 +7,9 @@ import * as sessionService from "../services/session.service.js";
 import * as streamService from "../services/stream.service.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { rateLimit, clientIp } from "../middleware/rate-limit.js";
+import { createLogger } from "../lib/logger.js";
+
+const log = createLogger("api.research");
 
 export const researchRouter = new Hono();
 
@@ -83,7 +86,11 @@ researchRouter.post("/", createLimiter, async (c) => {
 
   // Enqueue research job
   const queue = getResearchQueue();
-  await queue.add("research", { sessionId }, { jobId: sessionId });
+  await queue.add(
+    "research",
+    { sessionId, requestId: c.get("requestId") },
+    { jobId: sessionId }
+  );
 
   return c.json({ sessionId, status: "in_progress" }, 202);
 });
@@ -152,7 +159,7 @@ researchRouter.get("/:id/stream", async (c) => {
       if (aborted || overloaded) return;
       if (queue.length >= MAX_QUEUE) {
         overloaded = true;
-        console.warn(`[SSE] Closing stream for session ${id}: client too slow`);
+        log.warn({ sessionId: id, requestId: c.get("requestId") }, "SSE: closing stream, client too slow");
         // Force the stream to close so the client can reconnect with
         // Last-Event-ID and resume from the durable history.
         aborted = true;
@@ -344,6 +351,7 @@ researchRouter.post("/:id/iterate", createLimiter, async (c) => {
     iterationType: parsed.data.type,
     target: parsed.data.target,
     details: parsed.data.details,
+    requestId: c.get("requestId"),
   }, { jobId: childSessionId });
 
   return c.json({ sessionId: childSessionId, status: "in_progress" }, 202);

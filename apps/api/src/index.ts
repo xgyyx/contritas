@@ -1,13 +1,16 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { generateId } from "@contritas/shared";
 import { researchRouter } from "./routes/research.js";
 import { db } from "./drizzle/index.js";
 import { closeDb } from "./drizzle/index.js";
 import { getRedis, closeRedis } from "./lib/redis.js";
 import { sql } from "drizzle-orm";
 import { loadConfig } from "./config.js";
+import { createLogger } from "./lib/logger.js";
 
+const log = createLogger("api");
 const config = loadConfig();
 
 const app = new Hono();
@@ -26,6 +29,31 @@ app.use(
     maxAge: 600,
   })
 );
+
+// Request id + structured access log. Generated once per request, exposed on the
+// context (so handlers can include it in their logs) and reflected in the
+// X-Request-Id response header so operators can correlate client/server logs.
+app.use("*", async (c, next) => {
+  const incoming = c.req.header("X-Request-Id");
+  const requestId = incoming && incoming.length <= 64 ? incoming : generateId();
+  c.set("requestId", requestId);
+  c.header("X-Request-Id", requestId);
+
+  const start = Date.now();
+  await next();
+  const duration = Date.now() - start;
+  const status = c.res.status;
+  const entry = {
+    requestId,
+    method: c.req.method,
+    path: c.req.path,
+    status,
+    durationMs: duration,
+  };
+  if (status >= 500) log.error(entry, "request");
+  else if (duration > 2000 || status >= 400) log.warn(entry, "request");
+  else log.info(entry, "request");
+});
 
 // Health check — verifies DB and Redis connectivity
 app.get("/health", async (c) => {
@@ -59,21 +87,31 @@ app.route("/api/research", researchRouter);
 // 404 fallback
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 
-// Global error handler
+// Global error handler — every internal error gets a stable id so operators can
+// grep logs from a user-reported errorId without exposing stack details.
 app.onError((err, c) => {
-  console.error("Unhandled error:", err);
-  return c.json({ error: "Internal server error" }, 500);
+  const errorId = generateId();
+  const requestId = c.get("requestId") as string | undefined;
+  log.error(
+    {
+      errorId,
+      requestId,
+      err: err instanceof Error ? { message: err.message, stack: err.stack } : err,
+    },
+    "unhandled error"
+  );
+  return c.json({ error: "Internal server error", errorId }, 500);
 });
 
 // Start server
 const port = config.port;
 
-console.log(`Contritas API server starting on port ${port}...`);
-console.log(`[config] CORS allowlist: ${config.webOrigins.join(", ")}`);
-console.log(`[config] Auth tokens configured: ${config.authTokens.length}`);
+log.info({ port }, "starting Contritas API server");
+log.info({ webOrigins: config.webOrigins }, "CORS allowlist");
+log.info({ authTokens: config.authTokens.length }, "auth tokens configured");
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`Server running at http://localhost:${info.port}`);
+  log.info({ port: info.port }, "server listening");
 });
 
 // Graceful shutdown
@@ -83,13 +121,13 @@ let shuttingDown = false;
 async function shutdown(signal: string) {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`[API] Received ${signal}, shutting down gracefully...`);
+  log.info({ signal }, "shutting down gracefully");
 
   // Force-exit if graceful shutdown stalls (e.g. long SSE connections that
   // ignore abort). This bounds container kill time below the orchestrator's
   // SIGKILL grace window.
   const forceExit = setTimeout(() => {
-    console.error(`[API] Shutdown exceeded ${SHUTDOWN_TIMEOUT_MS}ms, forcing exit.`);
+    log.error({ timeoutMs: SHUTDOWN_TIMEOUT_MS }, "shutdown exceeded timeout, forcing exit");
     process.exit(1);
   }, SHUTDOWN_TIMEOUT_MS);
   forceExit.unref();
@@ -100,7 +138,7 @@ async function shutdown(signal: string) {
   // period — SSE streams would otherwise hold the close() callback forever.
   const closePromise = new Promise<void>((resolve) => {
     server.close((err) => {
-      if (err) console.error("[API] server.close error:", err);
+      if (err) log.error({ err }, "server.close error");
       resolve();
     });
   });
@@ -118,15 +156,15 @@ async function shutdown(signal: string) {
   try {
     await closeRedis();
   } catch (err) {
-    console.error("[API] closeRedis error:", err);
+    log.error({ err }, "closeRedis error");
   }
   try {
     await closeDb();
   } catch (err) {
-    console.error("[API] closeDb error:", err);
+    log.error({ err }, "closeDb error");
   }
 
-  console.log("[API] Shutdown complete.");
+  log.info("shutdown complete");
   clearTimeout(forceExit);
   process.exit(0);
 }

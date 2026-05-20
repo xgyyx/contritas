@@ -1,4 +1,7 @@
 import type { ProviderConfig } from "@contritas/llm";
+import { createLogger } from "./lib/logger.js";
+
+const log = createLogger("config");
 
 export interface SearchConfig {
   tavilyApiKey?: string;
@@ -89,13 +92,13 @@ function loadLLMConfig(): ProviderConfig {
         try {
           const host = new URL(baseUrl).hostname;
           if (!/(^|\.)anthropic\.com$/.test(host)) {
-            console.warn(
-              `[config] ANTHROPIC_BASE_URL points to non-official host '${host}'. ` +
-                `All Claude requests/responses will be proxied through it — ensure this is intentional.`
+            log.warn(
+              { host },
+              "ANTHROPIC_BASE_URL points to non-official host; all Claude traffic will be proxied"
             );
           }
         } catch {
-          console.warn(`[config] ANTHROPIC_BASE_URL is not a valid URL: ${baseUrl}`);
+          log.warn({ baseUrl }, "ANTHROPIC_BASE_URL is not a valid URL");
         }
       }
       return {
@@ -135,7 +138,7 @@ function loadSearchConfig(): SearchConfig {
   };
 
   if (!config.tavilyApiKey && !config.serperApiKey) {
-    console.warn("[config] No search provider API key configured (TAVILY_API_KEY or SERPER_API_KEY). Search phase will fail.");
+    log.warn("no search provider API key configured (TAVILY_API_KEY or SERPER_API_KEY); search phase will fail");
   }
 
   return config;

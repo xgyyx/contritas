@@ -10,6 +10,7 @@ declare module "hono" {
   interface ContextVariableMap {
     authToken: string;
     authTokenHash: string;
+    requestId: string;
   }
 }
 

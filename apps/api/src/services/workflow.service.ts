@@ -25,6 +25,9 @@ import { publishEvent } from "./stream.service.js";
 import * as sessionService from "./session.service.js";
 import type { SearchConfig } from "../config.js";
 import { getRedis } from "../lib/redis.js";
+import { createLogger } from "../lib/logger.js";
+
+const log = createLogger("workflow");
 
 export interface WorkflowRunResult {
   finalState: string;
@@ -194,7 +197,7 @@ export function createWorkflowDeps(
 
       // Fire and forget — errors logged but don't block workflow
       publishEvent(sessionId, progressEvent).catch((err) => {
-        console.error(`Failed to publish event for session ${sessionId}:`, err);
+        log.error({ sessionId, err }, "failed to publish event");
       });
     },
     persistState: async (context: ResearchContext) => {
@@ -368,7 +371,7 @@ export function createWorkflowDeps(
         // persistState is invoked fire-and-forget from the state machine; full BullMQ
         // failure semantics are 6.3's responsibility.
         const message = err instanceof Error ? err.message : String(err);
-        console.error(`Failed to persist state for session ${sessionId}:`, err);
+        log.error({ sessionId, err }, "failed to persist state");
         await publishEvent(sessionId, {
           type: "error",
           message: `Persistence failed: ${message}`,
