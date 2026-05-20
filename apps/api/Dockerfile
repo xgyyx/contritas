@@ -55,5 +55,9 @@ WORKDIR /app/apps/api
 ENV NODE_ENV=production
 EXPOSE 4000
 
+# Drop privileges — node:alpine ships a "node" user (uid 1000)
+RUN chown -R node:node /app
+USER node
+
 # Default: run API server. Override with CMD for worker.
 CMD ["node", "dist/index.js"]

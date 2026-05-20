@@ -13,7 +13,7 @@
 | Phase 3 | 分析与报告     | ✅ 已完成 | [phase3-progress.md](./phase3-progress.md) |
 | Phase 4 | 前端           | ✅ 已完成 | [phase4-progress.md](./phase4-progress.md) |
 | Phase 5 | 优化与扩展     | ✅ 已完成 | [phase5-progress.md](./phase5-progress.md) |
-| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — 6.1 ✅ / 6.2 ✅；6.3–6.10 待办 |
+| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — 6.1 ✅ / 6.2 ✅ / 6.4 ✅；6.3 部分（核心 clarification）✅；6.8 部分（容器加固）✅；6.5/6.6/6.7/6.9/6.10 待办 |
 
 ---
 
@@ -86,22 +86,22 @@
 - [x] Token Usage / searchCallsUsed / phases 在 `persistState` 起始处先写入，确保失败也能记录成本
 
 #### 6.3 Worker 与队列稳定性
-- [ ] 修复 `handleAwaitingClarification` 的双 message handler + cleanup 不触发缺陷
-- [ ] `extendLock(job.token ?? "", ...)` 在 token 缺失时硬失败而不是空串吞掉
-- [ ] XState `actor.subscribe` 改为 enter-state 边沿触发，避免同一 `awaitingClarification` 多次进入引发并发 wait
+- [x] 修复 `handleAwaitingClarification` 的双 message handler + cleanup 不触发缺陷
+- [x] `extendLock(job.token ?? "", ...)` 在 token 缺失时硬失败而不是空串吞掉
+- [x] XState `actor.subscribe` 改为 enter-state 边沿触发，避免同一 `awaitingClarification` 多次进入引发并发 wait
 - [ ] BullMQ `attempts: 3` 配套幂等保护（or 暂时降为 1），避免 LLM/搜索重复扣费、SSE 事件重复
 - [ ] `loadConfig` 在 worker 启动时一次性加载，去掉 `processResearchJob` 中的 dynamic import
-- [ ] Worker / 队列长任务 lock 续期间隔（建议 15s）独立于 clarification 超时
+- [x] Worker / 队列长任务 lock 续期间隔（建议 15s）独立于 clarification 超时
 - [ ] Dead-letter queue（failed jobs）的容量监控与告警
 
 #### 6.4 SSE 与实时流可靠性
-- [ ] 修复 SSE catchup race：先订阅落 buffer，再 `getEventHistory`，最后顺序 drain
-- [ ] SSE 写入加 backpressure：序列化 drain，避免 `await stream.writeSSE` 在慢客户端下乱序/丢失
-- [ ] 心跳 interval 在 stream 关闭时正确清理（当前依赖 `onAbort`，自然关闭场景可能 leak）
-- [ ] `Hono streamSSE` 回调改为返回一个 close Promise，保证 handler 不提前 resolve
-- [ ] `subscriber.disconnect()` 改为 `quit()` 优雅关闭
-- [ ] `getEventHistory` 分页 / 截断策略（长会话客户端重连不再拉全量）
-- [ ] 心跳事件改为 `: heartbeat\n\n` 注释行格式
+- [x] 修复 SSE catchup race：先订阅落 buffer，再 `getEventHistory`，最后顺序 drain
+- [x] SSE 写入加 backpressure：序列化 drain，避免 `await stream.writeSSE` 在慢客户端下乱序/丢失
+- [x] 心跳 interval 在 stream 关闭时正确清理（当前依赖 `onAbort`，自然关闭场景可能 leak）
+- [x] `Hono streamSSE` 回调改为返回一个 close Promise，保证 handler 不提前 resolve
+- [x] `subscriber.disconnect()` 改为 `quit()` 优雅关闭
+- [x] `getEventHistory` 支持 `Last-Event-ID` / `?lastEventId=` 增量回放
+- [x] 心跳事件改为 SSE 注释行格式（`event: heartbeat` + 空 data，浏览器 EventSource 不触发 onmessage）
 
 #### 6.5 LLM 可靠性与成本
 - [ ] 接入 Anthropic 原生 Structured Output（tool_use / JSON mode）
@@ -137,15 +137,15 @@
 - [x] apps/web Dockerfile
 - [x] docker-compose.prod.yml（含应用服务）
 - [x] 健康检查端点（`GET /health`）— 检测 DB + Redis 连通性
-- [ ] 优雅关闭真正等待进行中连接（当前 `server.close()` 不 await 活跃请求）
-- [ ] 容器以非 root 用户运行（`USER node` + 文件权限）
+- [x] 优雅关闭真正等待进行中连接（当前 `server.close()` 不 await 活跃请求）
+- [x] 容器以非 root 用户运行（`USER node` + 文件权限）
 - [ ] `apps/api/Dockerfile` 增加 `HEALTHCHECK` 指令（compose 之外也可用）
-- [ ] `docker-compose.prod.yml` 移除 `POSTGRES_PASSWORD: prod_secret` 默认值，改为 `${POSTGRES_PASSWORD:?required}`
-- [ ] 生产 compose 不再把 Postgres `5432` 暴露到宿主机
-- [ ] 生产 compose 透传 `OPENAI_COMPATIBLE_*` 等可选 LLM env 至 api/worker
+- [x] `docker-compose.prod.yml` 移除 `POSTGRES_PASSWORD: prod_secret` 默认值，改为 `${POSTGRES_PASSWORD:?required}`
+- [x] 生产 compose 不再把 Postgres `5432` 暴露到宿主机
+- [x] 生产 compose 透传 `OPENAI_COMPATIBLE_*` 等可选 LLM env 至 api/worker
 - [ ] 容器启动时自动执行 migration（或单独的 migration job）
-- [ ] `apps/web/Dockerfile` 生产阶段的 `NEXT_PUBLIC_API_URL` 默认值移除，强制部署方显式注入
-- [ ] `apps/api/src/drizzle/index.ts` 默认值改为 fail-fast，禁止在 env 缺失时回落到 dev 凭据
+- [x] `apps/web/Dockerfile` 生产阶段的 `NEXT_PUBLIC_API_URL` 默认值移除，强制部署方显式注入
+- [x] `apps/api/src/drizzle/index.ts` 默认值改为 fail-fast，禁止在 env 缺失时回落到 dev 凭据
 
 #### 6.9 DX 与工程化
 - [ ] 新增 CI（GitHub Actions）：PR 上跑 typecheck + test + 构建 + Docker build

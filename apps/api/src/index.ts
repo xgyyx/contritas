@@ -77,12 +77,57 @@ const server = serve({ fetch: app.fetch, port }, (info) => {
 });
 
 // Graceful shutdown
+const SHUTDOWN_TIMEOUT_MS = parseInt(process.env.SHUTDOWN_TIMEOUT_MS ?? "30000", 10);
+let shuttingDown = false;
+
 async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`[API] Received ${signal}, shutting down gracefully...`);
-  server.close();
-  await closeRedis();
-  await closeDb();
+
+  // Force-exit if graceful shutdown stalls (e.g. long SSE connections that
+  // ignore abort). This bounds container kill time below the orchestrator's
+  // SIGKILL grace window.
+  const forceExit = setTimeout(() => {
+    console.error(`[API] Shutdown exceeded ${SHUTDOWN_TIMEOUT_MS}ms, forcing exit.`);
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExit.unref();
+
+  // 1) Stop accepting new connections and wait for in-flight requests.
+  // server.close() ignores existing keep-alive / SSE sockets, so we also kick
+  // idle ones immediately and force-close everything after a short grace
+  // period — SSE streams would otherwise hold the close() callback forever.
+  const closePromise = new Promise<void>((resolve) => {
+    server.close((err) => {
+      if (err) console.error("[API] server.close error:", err);
+      resolve();
+    });
+  });
+  const httpServer = server as unknown as {
+    closeIdleConnections?: () => void;
+    closeAllConnections?: () => void;
+  };
+  httpServer.closeIdleConnections?.();
+  const sseGrace = setTimeout(() => httpServer.closeAllConnections?.(), 5_000);
+  sseGrace.unref();
+  await closePromise;
+  clearTimeout(sseGrace);
+
+  // 2) Now safe to tear down shared resources.
+  try {
+    await closeRedis();
+  } catch (err) {
+    console.error("[API] closeRedis error:", err);
+  }
+  try {
+    await closeDb();
+  } catch (err) {
+    console.error("[API] closeDb error:", err);
+  }
+
   console.log("[API] Shutdown complete.");
+  clearTimeout(forceExit);
   process.exit(0);
 }
 

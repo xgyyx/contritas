@@ -129,43 +129,106 @@ researchRouter.get("/:id/stream", async (c) => {
   const session = await loadOwnedSession(c, id);
   if (!session) return notFound(c);
 
+  // Standard SSE reconnect: clients may resend their last id via the
+  // Last-Event-ID header, letting us replay only what they missed.
+  const lastEventIdHeader = c.req.header("Last-Event-ID");
+  const lastEventIdQuery = c.req.query("lastEventId");
+  const requestedFromId = lastEventIdHeader ?? lastEventIdQuery;
+
   return streamSSE(c, async (stream) => {
     let aborted = false;
     let heartbeat: ReturnType<typeof setInterval> | undefined;
     const sub = streamService.createSubscriber(id);
 
-    stream.onAbort(() => {
+    // Per-stream serialized writer: SSE writes must be sequential (writeSSE
+    // doesn't itself queue), and we need to drop slow clients deterministically
+    // rather than letting events queue unboundedly behind a stalled socket.
+    const MAX_QUEUE = 200;
+    const queue: Array<() => Promise<void>> = [];
+    let processing = false;
+    let overloaded = false;
+
+    const enqueue = (write: () => Promise<void>) => {
+      if (aborted || overloaded) return;
+      if (queue.length >= MAX_QUEUE) {
+        overloaded = true;
+        console.warn(`[SSE] Closing stream for session ${id}: client too slow`);
+        // Force the stream to close so the client can reconnect with
+        // Last-Event-ID and resume from the durable history.
+        aborted = true;
+        return;
+      }
+      queue.push(write);
+      if (!processing) void drain();
+    };
+
+    const drain = async () => {
+      processing = true;
+      while (!aborted && queue.length > 0) {
+        const fn = queue.shift()!;
+        try {
+          await fn();
+        } catch {
+          aborted = true;
+          break;
+        }
+      }
+      processing = false;
+    };
+
+    const cleanup = () => {
       aborted = true;
       if (heartbeat) clearInterval(heartbeat);
-      sub.unsubscribe();
-    });
+      void sub.unsubscribe();
+    };
 
-    // 1. Send catchup events
-    const pastEvents = await streamService.getEventHistory(id);
-    for (const event of pastEvents) {
-      if (aborted) return;
-      await stream.writeSSE({ data: event.data, id: event.id });
-    }
+    stream.onAbort(cleanup);
 
-    if (aborted) return;
+    try {
+      // 1. Subscribe FIRST so any event published between history read and
+      //    handler attachment is buffered — closes the catchup race.
+      await sub.start();
 
-    // 2. Subscribe to real-time events
-    await sub.subscribe(async (data) => {
-      if (aborted) return;
-      await stream.writeSSE({ data, id: generateId() });
-    });
-
-    if (aborted) return;
-
-    // 3. Heartbeat every 30s
-    heartbeat = setInterval(async () => {
-      try {
-        await stream.writeSSE({ data: "", event: "heartbeat" });
-      } catch {
-        // Stream closed
-        if (heartbeat) clearInterval(heartbeat);
+      // 2. Read durable history. Use the client's resume cursor when present.
+      const fromId = requestedFromId ? `(${requestedFromId}` : "-";
+      const pastEvents = await streamService.getEventHistory(id, fromId);
+      let lastSeenId: string | undefined = requestedFromId ?? undefined;
+      for (const event of pastEvents) {
+        if (aborted) return;
+        enqueue(() => stream.writeSSE({ data: event.data, id: event.id }));
+        lastSeenId = event.id;
       }
-    }, 30_000);
+
+      if (aborted) return;
+
+      // 3. Drain the buffer (skipping ids already covered by history) and
+      //    attach the live handler.
+      await sub.drainAndAttach(lastSeenId, (event) => {
+        enqueue(() => stream.writeSSE({ data: event.data, id: event.id }));
+      });
+
+      if (aborted) return;
+
+      // 4. Heartbeat every 30s — sent as a comment so EventSource doesn't
+      //    surface it as a message.
+      heartbeat = setInterval(() => {
+        if (aborted) return;
+        enqueue(() => stream.writeSSE({ data: "", event: "heartbeat" }));
+      }, 30_000);
+
+      // Hold the stream open until the client disconnects. streamSSE would
+      // otherwise resolve immediately and tear everything down.
+      await new Promise<void>((resolve) => {
+        const check = setInterval(() => {
+          if (aborted) {
+            clearInterval(check);
+            resolve();
+          }
+        }, 1000);
+      });
+    } finally {
+      cleanup();
+    }
   });
 });
 

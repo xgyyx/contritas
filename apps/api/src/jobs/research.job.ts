@@ -6,6 +6,8 @@ import { createWorkflowController, createWorkflowControllerFromContext, createIt
 import { createRedisConnection } from "../lib/redis.js";
 
 const CLARIFICATION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const LOCK_EXTEND_INTERVAL_MS = 15_000;
+const LOCK_EXTEND_DURATION_MS = 60_000;
 
 export async function processResearchJob(job: Job<ResearchJobData>): Promise<void> {
   const { sessionId, parentSessionId, iterationType, target, details } = job.data;
@@ -40,7 +42,6 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
 
   let controller;
   if (parentSessionId && iterationType) {
-    // Iterate job — build context from parent session
     const { context, initialState } = await createIterateContext(
       sessionId,
       parentSessionId,
@@ -57,7 +58,6 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
       searchDeps,
     );
   } else {
-    // Normal research job
     controller = createWorkflowController(
       sessionId,
       input.originalText,
@@ -87,16 +87,28 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
     });
   });
 
-  // Subscribe to state changes to handle awaitingClarification
+  // Track in-flight clarification waits and the previous state value so we
+  // only react on the edge into awaitingClarification (re-entries during
+  // iterate or LLM-driven loops would otherwise spawn duplicate subscribers).
   const actor = controller.actor;
+  let prevState: unknown = undefined;
+  let clarificationInFlight: Promise<void> | null = null;
+
   actor.subscribe((snapshot: { value: unknown }) => {
     const state = snapshot.value;
-
-    if (state === "awaitingClarification") {
-      handleAwaitingClarification(sessionId, controller, job).catch((err) => {
-        console.error(`[Worker] Error handling clarification for ${sessionId}:`, err);
-      });
+    if (state === "awaitingClarification" && prevState !== "awaitingClarification") {
+      if (!clarificationInFlight) {
+        clarificationInFlight = handleAwaitingClarification(sessionId, controller, job)
+          .catch((err) => {
+            console.error(`[Worker] Error handling clarification for ${sessionId}:`, err);
+            throw err;
+          })
+          .finally(() => {
+            clarificationInFlight = null;
+          });
+      }
     }
+    prevState = state;
   });
 
   // Start the workflow
@@ -111,50 +123,77 @@ async function handleAwaitingClarification(
   controller: ReturnType<typeof createWorkflowController>,
   job: Job
 ): Promise<void> {
-  // Update session status to awaiting_input
+  // BullMQ uses the job token to authenticate lock extension. Without it the
+  // lock will silently fail to extend and the job becomes eligible for stalled
+  // recovery — which would re-deliver the job mid-clarification.
+  const token = job.token;
+  if (!token) {
+    throw new Error(`[Worker] Missing job token for session ${sessionId}`);
+  }
+
   await sessionService.updateSessionStatus(sessionId, "awaiting_input");
 
-  // Subscribe to Redis channel for user response
   const subscriber = createRedisConnection();
   const channel = `research:${sessionId}:response`;
 
-  return new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(async () => {
-      await subscriber.unsubscribe();
-      subscriber.disconnect();
+  let timeout: NodeJS.Timeout | undefined;
+  let lockExtender: NodeJS.Timeout | undefined;
+  let settled = false;
+
+  type Outcome = { kind: "response"; message: string } | { kind: "timeout" };
+
+  try {
+    const outcome = await new Promise<Outcome>((resolve, reject) => {
+      const settle = (cb: () => void) => {
+        if (settled) return;
+        settled = true;
+        cb();
+      };
+
+      timeout = setTimeout(() => {
+        settle(() => resolve({ kind: "timeout" }));
+      }, CLARIFICATION_TIMEOUT_MS);
+
+      // Single message handler — only the first reply wins; later messages
+      // (e.g. duplicate publishes) are ignored because settled flips true.
+      subscriber.on("message", (_ch: string, message: string) => {
+        settle(() => resolve({ kind: "response", message }));
+      });
+
+      subscriber.subscribe(channel).catch((err) => {
+        settle(() => reject(err));
+      });
+
+      // Keep the BullMQ lock alive while we wait. extendLock requires the
+      // job's lock token; failures here are real (token mismatch / job moved)
+      // and must surface so the job is treated as failed rather than silently
+      // losing its lock.
+      lockExtender = setInterval(() => {
+        job.extendLock(token, LOCK_EXTEND_DURATION_MS).catch((err) => {
+          settle(() => reject(err instanceof Error ? err : new Error(String(err))));
+        });
+      }, LOCK_EXTEND_INTERVAL_MS);
+    });
+
+    if (outcome.kind === "timeout") {
       controller.cancel();
-      reject(new Error(`Clarification timeout for session ${sessionId}`));
-    }, CLARIFICATION_TIMEOUT_MS);
+      throw new Error(`Clarification timeout for session ${sessionId}`);
+    }
 
-    subscriber.subscribe(channel).then(() => {
-      subscriber.on("message", async (_ch: string, message: string) => {
-        clearTimeout(timeout);
-        await subscriber.unsubscribe();
-        subscriber.disconnect();
-
-        // Update session status back to in_progress
-        await sessionService.updateSessionStatus(sessionId, "in_progress");
-
-        // Send user response to workflow
-        controller.sendUserResponse(message);
-        resolve();
-      });
-    }).catch(reject);
-
-    // Extend job lock while waiting
-    const lockExtender = setInterval(() => {
-      job.extendLock(job.token ?? "", 30_000).catch(() => {
-        // If lock extension fails, the job might have been moved
-        clearInterval(lockExtender);
-      });
-    }, 20_000);
-
-    // Clean up lock extender on resolution
-    const cleanup = () => {
-      clearInterval(lockExtender);
-      clearTimeout(timeout);
-    };
-
-    subscriber.on("message", () => cleanup());
-  });
+    await sessionService.updateSessionStatus(sessionId, "in_progress");
+    controller.sendUserResponse(outcome.message);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+    if (lockExtender) clearInterval(lockExtender);
+    try {
+      await subscriber.unsubscribe(channel);
+    } catch {
+      // ignore — connection may already be closing
+    }
+    try {
+      await subscriber.quit();
+    } catch {
+      subscriber.disconnect();
+    }
+  }
 }

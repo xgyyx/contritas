@@ -19,9 +19,15 @@ RUN pnpm install --frozen-lockfile
 # ─── Stage 3: Build ──────────────────────────────────────────────────────────
 FROM deps AS build
 
-# NEXT_PUBLIC_ vars must be set at build time (inlined by Next.js)
-ARG NEXT_PUBLIC_API_URL=http://localhost:4000
+# NEXT_PUBLIC_ vars must be set at build time (inlined by Next.js).
+# Both are required — no defaults so missing values fail the build instead of
+# silently shipping a broken bundle.
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_TOKEN
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_API_TOKEN=${NEXT_PUBLIC_API_TOKEN}
+RUN test -n "$NEXT_PUBLIC_API_URL" || (echo "NEXT_PUBLIC_API_URL build-arg is required" && exit 1)
+RUN test -n "$NEXT_PUBLIC_API_TOKEN" || (echo "NEXT_PUBLIC_API_TOKEN build-arg is required" && exit 1)
 
 # Copy source
 COPY packages/shared/ ./packages/shared/
@@ -45,6 +51,10 @@ COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build /app/apps/web/public ./apps/web/public
 
 EXPOSE 3000
+
+# Drop privileges — node:alpine ships a "node" user (uid 1000)
+RUN chown -R node:node /app
+USER node
 
 # Next.js standalone server entrypoint
 CMD ["node", "apps/web/server.js"]
