@@ -43,7 +43,8 @@ contritas/
 │   ├── llm/              # LLM 抽象层 (providers + prompts)
 │   ├── workflow/          # XState 状态机 (研究流程)
 │   └── search/           # 搜索抽象层 (Tavily/Serper + Jina/Firecrawl)
-├── docker-compose.yml    # PostgreSQL + Redis
+├── docker-compose.yml      # 开发环境 (PostgreSQL + Redis)
+├── docker-compose.prod.yml # 生产环境 (全部服务)
 ├── turbo.json
 └── pnpm-workspace.yaml
 ```
@@ -81,6 +82,21 @@ cd apps/api && pnpm dev
 # 7. 启动 Worker（另一个终端）
 cd apps/api && pnpm worker
 ```
+
+### 生产模式（Docker）
+
+```bash
+# 配置 .env 后一键启动全部服务
+docker compose -f docker-compose.prod.yml up --build -d
+
+# 查看状态
+docker compose -f docker-compose.prod.yml ps
+
+# 停止
+docker compose -f docker-compose.prod.yml down
+```
+
+详见 [Docker 部署指南](docs/deployment/docker.md)。
 
 ### 运行测试
 
@@ -127,6 +143,7 @@ Phase 5: 综合报告 → 生成结构化尽调报告
 | [搜索层](docs/architecture/search-layer.md) | 搜索/提取 Provider、编排器 |
 | [数据模型](docs/architecture/data-model.md) | 实体关系、PostgreSQL Schema |
 | [基础设施](docs/architecture/realtime-and-infra.md) | SSE、存储、部署、安全 |
+| [Docker 部署](docs/deployment/docker.md) | 容器化构建、生产运行、环境配置与运维 |
 | [实施路线](docs/progress/roadmap.md) | 各阶段规划与进度 |
 | [PRD 映射表](docs/prd-mapping.md) | PRD 需求 → 技术实现追踪 |
 

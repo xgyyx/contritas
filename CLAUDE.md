@@ -94,6 +94,7 @@ Schema 定义：`apps/api/src/drizzle/schema.ts`（Drizzle 格式，以代码为
 ## API 端点
 
 已实现：
+- `GET /health` — 健康检查（检测 DB + Redis 连通性）
 - `POST /api/research` — 创建研究会话（返回 202）
 - `GET /api/research/:id` — 获取会话状态
 - `GET /api/research/:id/stream` — SSE 实时进度
@@ -127,6 +128,7 @@ Schema 定义：`apps/api/src/drizzle/schema.ts`（Drizzle 格式，以代码为
 - 搜索层：`docs/architecture/search-layer.md`
 - 数据模型：`docs/architecture/data-model.md`
 - 基础设施：`docs/architecture/realtime-and-infra.md`
+- Docker 部署：`docs/deployment/docker.md`
 - PRD 映射表：`docs/prd-mapping.md`
 
 ## 编码约定

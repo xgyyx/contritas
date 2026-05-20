@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { getRedis } from "./lib/redis.js";
+import { getRedis, closeRedis } from "./lib/redis.js";
 import { processResearchJob } from "./jobs/research.job.js";
 import type { ResearchJobData } from "./lib/queue.js";
 import { WORKER_LOCK_DURATION_MS } from "@contritas/shared";
@@ -31,16 +31,15 @@ worker.on("error", (err) => {
 });
 
 // Graceful shutdown
-process.on("SIGTERM", async () => {
-  console.log("[Worker] Received SIGTERM, shutting down...");
+async function shutdown(signal: string) {
+  console.log(`[Worker] Received ${signal}, shutting down...`);
   await worker.close();
+  await closeRedis();
+  console.log("[Worker] Shutdown complete.");
   process.exit(0);
-});
+}
 
-process.on("SIGINT", async () => {
-  console.log("[Worker] Received SIGINT, shutting down...");
-  await worker.close();
-  process.exit(0);
-});
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
 
 console.log("[Worker] Worker ready, waiting for jobs...");

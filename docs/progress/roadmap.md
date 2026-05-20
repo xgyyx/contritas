@@ -87,12 +87,12 @@
 - [ ] Dead-letter queue 检查与告警
 - [ ] 结构化日志（替换 console.log/error）
 
-#### 6.5 部署与容器化
-- [ ] apps/api Dockerfile（多阶段构建）
-- [ ] apps/web Dockerfile
-- [ ] docker-compose.prod.yml（含应用服务）
-- [ ] 健康检查端点（`GET /health`）
-- [ ] 优雅关闭增强（等待进行中 job 完成或挂起）
+#### 6.5 部署与容器化 ✅
+- [x] apps/api Dockerfile（多阶段构建）
+- [x] apps/web Dockerfile
+- [x] docker-compose.prod.yml（含应用服务）
+- [x] 健康检查端点（`GET /health`）— 检测 DB + Redis 连通性
+- [x] 优雅关闭增强（等待进行中 job 完成或挂起）
 
 #### 6.6 数据一致性
 - [ ] 修复 evidence.dimensionId FK 语义（当前 evidence 的 dimensionId 与 dimensions 表 id 不对应）

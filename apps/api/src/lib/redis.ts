@@ -14,3 +14,10 @@ export function createRedisConnection(): Redis {
   const url = process.env.REDIS_URL ?? "redis://localhost:6379";
   return new Redis(url, { maxRetriesPerRequest: null });
 }
+
+export async function closeRedis(): Promise<void> {
+  if (redisInstance) {
+    await redisInstance.quit();
+    redisInstance = null;
+  }
+}
