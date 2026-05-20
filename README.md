@@ -221,7 +221,10 @@ Phase 5  报告综合   →  评分 + 行动建议 + 自检（不通过回退 Ph
 
 ### 想读懂产品
 
-- 📖 [《我做了一个会跟你唱反调的 AI 尽调 Agent》](./docs/blog/01-architecture-and-stack.md) — 技术博客 / 公众号风格
+- 📖 [《我做了一个会跟你唱反调的 AI 尽调 Agent》](./docs/blog/01-architecture-and-stack.md) — 架构与选型背后的思考
+- 🪞 [《怎么让 LLM 跟你唱反调》](./docs/blog/02-anti-flattery-prompt-design.md) — 反讨好式 Prompt 工程
+- 🔍 [《Phase 4 交叉验证：让 LLM 找证据矛盾》](./docs/blog/03-phase4-cross-validation.md) — 把"看看证据"变成结构化工程问题
+- 📚 [博客全集与待写选题](./docs/blog/) — 完整文章索引与 backlog
 - 📋 [PRD](./docs/prd/prd.md) — 定位、用户故事、功能列表、非功能需求
 - 📄 [报告模板](./docs/prd/report-template.md) — 输出报告的标准格式
 - 🤖 [Agent 行为规范](./docs/guides/agent-behavior.md) — 评分、降级、交互、约束规则
