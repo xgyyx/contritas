@@ -6,7 +6,7 @@ WORKDIR /app
 # ─── Stage 2: Dependencies ───────────────────────────────────────────────────
 FROM base AS deps
 
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json tsconfig.base.json ./
 COPY apps/web/package.json ./apps/web/
 COPY apps/api/package.json ./apps/api/
 COPY packages/shared/package.json ./packages/shared/
