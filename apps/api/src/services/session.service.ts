@@ -96,6 +96,13 @@ export async function updateSearchCallsUsed(id: string, searchCallsUsed: number)
     .where(eq(schema.researchSessions.id, id));
 }
 
+export async function updateTokenUsage(id: string, tokenUsage: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUSD: number }) {
+  await db
+    .update(schema.researchSessions)
+    .set({ tokenUsage, updatedAt: new Date() })
+    .where(eq(schema.researchSessions.id, id));
+}
+
 export async function getReport(sessionId: string) {
   const [report] = await db
     .select()

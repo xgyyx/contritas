@@ -4,10 +4,28 @@
 
 ## [Unreleased]
 
-### Planned
-- Phase 5: Model Router 按 Phase 路由到不同模型
-- Phase 5: 成本监控与 Token 预算机制
-- Phase 5: 搜索结果缓存优化
+### Planned — Phase 6: 加固与生产就绪
+- API 认证与鉴权（Session Token / API Key + ownership 校验）
+- 请求限流（rate-limiting 中间件）
+- 输入安全校验（长度上限、注入缓解）
+- LLM 原生 Structured Output 接入（Anthropic tool_use + OpenAI JSON mode）
+- Model Router 差异化路由实际启用
+- 报告生成流式输出（chatStream → 前端）
+- API 集成测试 + Actor 单元测试 + 前端组件测试
+- 可观测性（Sentry、指标采集、结构化日志）
+- Dockerfile + docker-compose.prod.yml + 健康检查端点
+- 数据一致性修复（evidence FK 语义、唯一约束）
+
+---
+
+## [0.5.0] - 2026-05-20
+
+### Added — Phase 5: 优化与扩展
+- Model Router 按 Phase 路由到不同模型（`packages/llm/src/router.ts`）
+- Token 预算机制（`DEFAULT_TOKEN_BUDGET_USD = 2.0`，超出进入 `budgetExceeded` 终态）
+- 搜索结果缓存优化（`RedisContentCache` + `buildCacheKey` 含 provider 参数）
+- ETA 事件发射（planning 完成后推送预估剩余时间）
+- 迭代研究（Iterate）修复（`deep_dive` + `add_dimension` 完整实现）
 
 ---
 

@@ -82,32 +82,42 @@ researchRouter.get("/:id/stream", async (c) => {
   }
 
   return streamSSE(c, async (stream) => {
+    let aborted = false;
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
+    const sub = streamService.createSubscriber(id);
+
+    stream.onAbort(() => {
+      aborted = true;
+      if (heartbeat) clearInterval(heartbeat);
+      sub.unsubscribe();
+    });
+
     // 1. Send catchup events
     const pastEvents = await streamService.getEventHistory(id);
     for (const event of pastEvents) {
+      if (aborted) return;
       await stream.writeSSE({ data: event.data, id: event.id });
     }
 
+    if (aborted) return;
+
     // 2. Subscribe to real-time events
-    const sub = streamService.createSubscriber(id);
     await sub.subscribe(async (data) => {
+      if (aborted) return;
       await stream.writeSSE({ data, id: generateId() });
     });
 
+    if (aborted) return;
+
     // 3. Heartbeat every 30s
-    const heartbeat = setInterval(async () => {
+    heartbeat = setInterval(async () => {
       try {
         await stream.writeSSE({ data: "", event: "heartbeat" });
       } catch {
         // Stream closed
-        clearInterval(heartbeat);
+        if (heartbeat) clearInterval(heartbeat);
       }
     }, 30_000);
-
-    stream.onAbort(() => {
-      clearInterval(heartbeat);
-      sub.unsubscribe();
-    });
   });
 });
 

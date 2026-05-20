@@ -31,12 +31,15 @@ pnpm worker
 src/
 ├── index.ts          # Hono app 入口
 ├── worker.ts         # BullMQ Worker 入口
+├── config.ts         # 环境变量加载与校验
 ├── routes/
 │   └── research.ts   # 路由定义
-├── services/         # 业务逻辑层
-├── drizzle/
-│   └── schema.ts     # 数据库 Schema（6 张表）
-└── utils/            # SSE、错误处理等工具
+├── services/         # 业务逻辑层（session、stream、workflow）
+├── jobs/
+│   └── research.job.ts  # BullMQ 作业处理
+├── lib/              # Redis 连接、队列配置
+└── drizzle/
+    └── schema.ts     # 数据库 Schema（6 张表）
 ```
 
 ## 数据库

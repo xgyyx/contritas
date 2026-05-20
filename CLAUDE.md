@@ -112,6 +112,7 @@ Schema 定义：`apps/api/src/drizzle/schema.ts`（Drizzle 格式，以代码为
 - Phase 3 分析与报告 ✅（交叉验证 + 报告综合 + 评分 + 自检）
 - Phase 4 前端 ✅（Next.js + SSE 实时 + 报告查看 + 历史 + 迭代交互）
 - Phase 5 优化与扩展 ✅（ModelRouter 路由 + Token 预算 + 搜索缓存优化 + ETA 事件 + 迭代修复）
+- Phase 6 加固与生产就绪 🚧（安全鉴权 + LLM 可靠性 + 测试覆盖 + 可观测性 + 容器化 + 数据一致性）
 
 详见 `docs/progress/roadmap.md`。
 

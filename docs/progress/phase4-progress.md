@@ -61,7 +61,7 @@
 src/
 ├── app/              3 个路由页面
 ├── components/
-│   ├── ui/           shadcn/ui 原子组件 (9 个)
+│   ├── ui/           shadcn/ui 原子组件 (10 个)
 │   ├── layout/       Header
 │   ├── research/     进度面板组件 (10 个)
 │   ├── report/       报告查看组件 (6 个)

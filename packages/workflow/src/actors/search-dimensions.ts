@@ -46,22 +46,23 @@ export const searchDimensions = fromPromise(
     const allEvidence: EvidenceData[] = [];
     const dimensionResults: RetrievalResult["dimensionResults"] = [];
 
-    // If targetedDimensions is set (self-check retry), only re-search those dimensions
-    const dimensionsToSearch = context.targetedDimensions && context.targetedDimensions.length > 0
-      ? context.dimensions.filter((_, idx) => {
-          // Match by dimension ID from evidence (generated during first search)
-          const dimIds = new Set(context.targetedDimensions);
-          const existingDimId = context.evidence.find((e) =>
-            context.dimensions[idx] && e.dimensionId
-          )?.dimensionId;
-          return existingDimId ? dimIds.has(existingDimId) : true;
-        })
-      : context.dimensions;
+    // If targetedDimensions is set (self-check retry), only re-search those dimensions.
+    // Use dimensionIdMap (set after first retrieval) to match dimensionIds back to dimensions.
+    const targetDimIds = context.targetedDimensions && context.targetedDimensions.length > 0
+      ? new Set(context.targetedDimensions)
+      : null;
 
-    const dimensionInputs: DimensionSearchInput[] = dimensionsToSearch.map((dim, idx) => ({
-      dimensionId: context.targetedDimensions
-        ? (context.targetedDimensions[idx] ?? generateId())
-        : generateId(),
+    let dimensionsToSearch: { dim: typeof context.dimensions[number]; existingId?: string }[];
+    if (targetDimIds && context.dimensionIdMap) {
+      dimensionsToSearch = context.dimensions
+        .map((dim, idx) => ({ dim, existingId: context.dimensionIdMap![idx] }))
+        .filter(({ existingId }) => existingId != null && targetDimIds.has(existingId));
+    } else {
+      dimensionsToSearch = context.dimensions.map((dim) => ({ dim }));
+    }
+
+    const dimensionInputs: DimensionSearchInput[] = dimensionsToSearch.map(({ dim, existingId }) => ({
+      dimensionId: existingId ?? generateId(),
       sessionId: context.sessionId,
       name: dim.name,
       coreQuestion: dim.coreQuestion,

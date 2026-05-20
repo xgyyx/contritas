@@ -44,6 +44,8 @@ export interface ResearchContext {
   searchCallsUsed: number;
   selfCheckRetries: number;
   targetedDimensions?: string[];
+  /** Maps dimension index to its assigned dimensionId from retrieval */
+  dimensionIdMap?: string[];
   error?: string;
 }
 

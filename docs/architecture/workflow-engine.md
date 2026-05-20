@@ -61,6 +61,7 @@
 | `completed`             | -          | 终态                                             |
 | `failed`                | -          | 终态                                             |
 | `cancelled`             | -          | 终态                                             |
+| `budgetExceeded`        | -          | 终态（Token 预算耗尽时进入）                     |
 
 各状态的 Actor 实现位于 `packages/workflow/src/actors/`。
 

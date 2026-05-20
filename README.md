@@ -111,7 +111,8 @@ Phase 5: 综合报告 → 生成结构化尽调报告
 - [x] Phase 2: 搜索能力接入 (Tavily + Jina Reader + Search Orchestrator)
 - [x] Phase 3: 完整研究流程 (交叉验证 + 报告综合 + 评分 + 自检)
 - [x] Phase 4: Web 前端 (Next.js + SSE 实时进度 + 报告查看 + 迭代交互)
-- [ ] Phase 5: 优化与上线
+- [x] Phase 5: 优化与扩展
+- [ ] Phase 6: 加固与生产就绪（安全鉴权、测试覆盖、可观测性、容器化部署）
 
 ## 文档
 

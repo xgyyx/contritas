@@ -308,6 +308,14 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
                 },
                 searchCallsUsed: ({ context, event }) =>
                   context.searchCallsUsed + (event.output as RetrievalResult).searchCallsUsed,
+                dimensionIdMap: ({ context, event }) => {
+                  const result = event.output as RetrievalResult;
+                  // On first run, store the full dimensionId map; on retry, keep existing
+                  if (context.dimensionIdMap && context.selfCheckRetries > 0) {
+                    return context.dimensionIdMap;
+                  }
+                  return result.dimensionResults.map((r) => r.dimensionId);
+                },
                 targetedDimensions: () => undefined,
                 phases: ({ context }) => [
                   ...context.phases.filter((p) => p.id !== "retrieval"),

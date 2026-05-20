@@ -13,6 +13,7 @@
 | Phase 3 | 分析与报告     | ✅ 已完成 | [phase3-progress.md](./phase3-progress.md) |
 | Phase 4 | 前端           | ✅ 已完成 | [phase4-progress.md](./phase4-progress.md) |
 | Phase 5 | 优化与扩展     | ✅ 已完成 | [phase5-progress.md](./phase5-progress.md) |
+| Phase 6 | 加固与生产就绪 | 🚧 进行中 | 见下方详细清单                              |
 
 ---
 
@@ -59,3 +60,41 @@
 - 搜索结果缓存优化 ✅
 - ETA 事件发射修复 ✅
 - 迭代研究（Iterate）功能修复 ✅
+
+### Phase 6：加固与生产就绪 🚧
+
+#### 6.1 安全与鉴权
+- [ ] API 层认证中间件（Session Token 或 API Key）
+- [ ] Session ownership 校验（用户只能操作自己的 session）
+- [ ] 请求限流中间件（rate-limiting，防止滥用）
+- [ ] 输入安全校验（originalText 长度上限、控制字符过滤、注入缓解）
+
+#### 6.2 LLM 可靠性
+- [ ] 接入 Anthropic 原生 Structured Output（tool_use / JSON mode）
+- [ ] 接入 OpenAI JSON mode（response_format）
+- [ ] 实际启用 Model Router 差异化路由（便宜模型用于 evidence eval，贵模型用于 synthesis）
+- [ ] 报告生成流式输出到前端（使用 chatStream）
+
+#### 6.3 测试覆盖
+- [ ] apps/api 集成测试（核心 8 个端点 + SSE 流 + 错误场景）
+- [ ] packages/workflow 补充 validate-input / decompose / plan / search-dimensions actor 单元测试
+- [ ] apps/web 组件测试（关键交互：input-form、clarification-dialog、iterate-panel）
+- [ ] 端到端测试（Mock LLM + Mock Search 的完整 pipeline 跑通）
+
+#### 6.4 可观测性
+- [ ] 错误追踪集成（Sentry 或同类服务）
+- [ ] 指标采集（job 耗时、token 消耗、搜索调用数、成功/失败率）
+- [ ] Dead-letter queue 检查与告警
+- [ ] 结构化日志（替换 console.log/error）
+
+#### 6.5 部署与容器化
+- [ ] apps/api Dockerfile（多阶段构建）
+- [ ] apps/web Dockerfile
+- [ ] docker-compose.prod.yml（含应用服务）
+- [ ] 健康检查端点（`GET /health`）
+- [ ] 优雅关闭增强（等待进行中 job 完成或挂起）
+
+#### 6.6 数据一致性
+- [ ] 修复 evidence.dimensionId FK 语义（当前 evidence 的 dimensionId 与 dimensions 表 id 不对应）
+- [ ] 增加 DB 唯一约束防止数据重复（session+order 对 assumptions，session+name 对 dimensions）
+- [ ] 完善 Token Usage 上报（每个 phase 完成后实时更新，非仅 persistState 末尾）

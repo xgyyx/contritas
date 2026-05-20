@@ -128,8 +128,8 @@ push to PR   → lint + typecheck + test → preview deploy
 
 | 阶段                  | 方案                         |
 | --------------------- | ---------------------------- |
-| Phase 1-3（当前）     | 无认证（单用户本地部署）     |
-| Phase 4+（上线前）    | API Key / JWT                |
+| Phase 1-5（当前）     | 无认证（单用户本地部署）     |
+| Phase 6（上线前）     | API Key / JWT                |
 
 上线前必须实现：
 - API 请求认证（Bearer Token / API Key）

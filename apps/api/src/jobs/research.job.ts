@@ -8,7 +8,7 @@ import { createRedisConnection } from "../lib/redis.js";
 const CLARIFICATION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 export async function processResearchJob(job: Job<ResearchJobData>): Promise<void> {
-  const { sessionId, parentSessionId, iterationType, target } = job.data;
+  const { sessionId, parentSessionId, iterationType, target, details } = job.data;
 
   console.log(`[Worker] Processing research job: ${sessionId}${parentSessionId ? ` (iterate from ${parentSessionId})` : ""}`);
 
@@ -46,6 +46,7 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
       parentSessionId,
       iterationType,
       target,
+      details,
     );
     controller = createWorkflowControllerFromContext(
       sessionId,

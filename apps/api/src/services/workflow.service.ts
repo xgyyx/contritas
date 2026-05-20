@@ -200,7 +200,16 @@ export function createWorkflowDeps(
       try {
         await sessionService.updateSessionPhases(sessionId, context.phases);
 
-        // Persist assumptions if they exist
+        // Delete in FK-safe order: cross_validations → evidence → dimensions → assumptions
+        // Then re-insert. This makes persistState idempotent on BullMQ retries.
+        if (context.crossValidations.length > 0 || context.evidence.length > 0 || context.dimensions.length > 0 || context.assumptions.length > 0) {
+          await db.delete(schema.crossValidations).where(eq(schema.crossValidations.sessionId, sessionId));
+          await db.delete(schema.evidence).where(eq(schema.evidence.sessionId, sessionId));
+          await db.delete(schema.dimensions).where(eq(schema.dimensions.sessionId, sessionId));
+          await db.delete(schema.assumptions).where(eq(schema.assumptions.sessionId, sessionId));
+        }
+
+        // Persist assumptions
         if (context.assumptions.length > 0) {
           for (const assumption of context.assumptions) {
             const id = generateId();
@@ -213,12 +222,11 @@ export function createWorkflowDeps(
                 type: assumption.type,
                 importance: assumption.importance,
                 order: assumption.order,
-              })
-              .onConflictDoNothing();
+              });
           }
         }
 
-        // Persist dimensions if they exist
+        // Persist dimensions
         if (context.dimensions.length > 0) {
           for (const dimension of context.dimensions) {
             const id = generateId();
@@ -233,12 +241,11 @@ export function createWorkflowDeps(
                 assumptionIds: dimension.relatedAssumptionIndices.map(String),
                 keywords: dimension.keywords,
                 status: "pending",
-              })
-              .onConflictDoNothing();
+              });
           }
         }
 
-        // Persist evidence if it exists
+        // Persist evidence
         if (context.evidence.length > 0) {
           for (const ev of context.evidence) {
             const id = generateId();
@@ -260,12 +267,11 @@ export function createWorkflowDeps(
                 keyExcerpt: ev.keyExcerpt,
                 relationship: ev.relationship,
                 timelinessRisk: ev.timelinessRisk,
-              })
-              .onConflictDoNothing();
+              });
           }
         }
 
-        // Persist cross-validations if they exist
+        // Persist cross-validations
         if (context.crossValidations.length > 0) {
           for (const cv of context.crossValidations) {
             const id = generateId();
@@ -279,8 +285,7 @@ export function createWorkflowDeps(
                 consistent: cv.consistent,
                 contradictionDescription: cv.contradictionDescription,
                 contradictionReason: cv.contradictionReason,
-              })
-              .onConflictDoNothing();
+              });
           }
 
           // Update dimension verdict/confidence from cross-validation results
@@ -295,7 +300,7 @@ export function createWorkflowDeps(
           }
         }
 
-        // Persist report if it exists
+        // Persist report if it exists (upsert by session+version unique constraint)
         if (context.report) {
           const reportId = generateId();
           await db
@@ -316,6 +321,11 @@ export function createWorkflowDeps(
         // Update search calls used
         if (context.searchCallsUsed > 0) {
           await sessionService.updateSearchCallsUsed(sessionId, context.searchCallsUsed);
+        }
+
+        // Persist token usage
+        if (context.tokenUsage.totalTokens > 0) {
+          await sessionService.updateTokenUsage(sessionId, context.tokenUsage);
         }
       } catch (err) {
         console.error(`Failed to persist state for session ${sessionId}:`, err);
@@ -417,6 +427,7 @@ export async function createIterateContext(
   parentSessionId: string,
   iterationType: "deep_dive" | "add_dimension",
   target?: string,
+  details?: string,
 ): Promise<{ context: ResearchContext; initialState: string }> {
   const parentSession = await sessionService.getSession(parentSessionId);
   if (!parentSession) {
@@ -478,10 +489,15 @@ export async function createIterateContext(
     contextEvidence = [];
   }
 
+  // Append user-provided details to the proposition for additional context
+  const originalText = details
+    ? `${parentInput.originalText}\n\n[迭代补充说明] ${details}`
+    : parentInput.originalText;
+
   const context: ResearchContext = {
     sessionId: childSessionId,
     input: {
-      originalText: parentInput.originalText,
+      originalText,
       language: parentInput.language,
     },
     assumptions,
