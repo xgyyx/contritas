@@ -129,6 +129,7 @@ Schema 定义：`apps/api/src/drizzle/schema.ts`（Drizzle 格式，以代码为
 - 数据模型：`docs/architecture/data-model.md`
 - 基础设施：`docs/architecture/realtime-and-infra.md`
 - Docker 部署：`docs/deployment/docker.md`
+- 发布流程 (CI/CD + changesets + GHCR)：`docs/deployment/release.md`
 - 安全策略（鉴权 / CORS / 限流 / SSRF / Prompt Injection）：`docs/security.md`
 - PRD 映射表：`docs/prd-mapping.md`
 - Phase 6 工单手册：`docs/progress/phase6-progress.md`
