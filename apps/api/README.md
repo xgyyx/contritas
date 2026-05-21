@@ -44,13 +44,15 @@ src/
 
 ## 数据库
 
-PostgreSQL，通过 Drizzle ORM 管理：
+PostgreSQL，通过 Drizzle ORM 管理。Schema 定义在 `src/drizzle/schema.ts`，迁移 SQL 在 `src/drizzle/migrations/`。
 
 ```bash
-pnpm db:generate   # 生成迁移文件
-pnpm db:push       # 推送 schema 到数据库
-pnpm db:migrate    # 执行迁移
+pnpm db:generate   # schema 变更后生成新迁移文件（commit 进仓库）
+pnpm db:push       # 仅本地开发：直接推 schema，不生成迁移文件
+pnpm db:migrate    # 显式应用 migrations/ 下未执行的迁移
 ```
+
+**生产容器**：API 容器启动时 `docker-entrypoint.sh` 会自动跑 `node dist/scripts/migrate.js`，把迁移落到 DB 后再 exec CMD。设 `RUN_MIGRATIONS=false` 可跳过（compose 中 worker 服务即如此，避免双跑争 advisory lock）。
 
 ## 环境变量
 

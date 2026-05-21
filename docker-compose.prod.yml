@@ -70,6 +70,9 @@ services:
     command: ["node", "dist/worker.js"]
     environment:
       - NODE_ENV=production
+      # Migrations run from the api service's entrypoint; worker should skip
+      # to avoid two services racing the migrator's advisory lock.
+      - RUN_MIGRATIONS=false
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/contritas
       - REDIS_URL=redis://redis:6379
       - LLM_PROVIDER=${LLM_PROVIDER:-claude}
@@ -87,6 +90,10 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      # Wait for api to become healthy so migrations are applied before
+      # worker boots (worker has RUN_MIGRATIONS=false).
+      api:
         condition: service_healthy
     stop_grace_period: 5m
     restart: unless-stopped

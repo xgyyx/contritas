@@ -47,8 +47,13 @@ COPY --from=build /app/packages/llm/dist/ ./packages/llm/dist/
 COPY --from=build /app/packages/search/dist/ ./packages/search/dist/
 COPY --from=build /app/packages/workflow/dist/ ./packages/workflow/dist/
 
-# Copy drizzle config for potential migrations
+# Copy drizzle config and migration SQL files so the container can self-migrate
 COPY --from=build /app/apps/api/drizzle.config.ts ./apps/api/
+COPY --from=build /app/apps/api/src/drizzle/migrations ./apps/api/src/drizzle/migrations
+
+# Copy the entrypoint that runs drizzle migrate before exec'ing the CMD
+COPY apps/api/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 WORKDIR /app/apps/api
 
@@ -59,5 +64,11 @@ EXPOSE 4000
 RUN chown -R node:node /app
 USER node
 
-# Default: run API server. Override with CMD for worker.
+# Container-level healthcheck so the image works the same way under bare
+# `docker run` as it does under compose. wget ships in node:alpine.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- http://localhost:4000/health >/dev/null 2>&1 || exit 1
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+# Default: run API server. Override CMD for worker.
 CMD ["node", "dist/index.js"]

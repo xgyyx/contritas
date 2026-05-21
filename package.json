@@ -1,6 +1,6 @@
 {
   "name": "contritas",
-  "version": "0.1.0",
+  "version": "0.6.0",
   "description": "Grind assumptions. Surface truth. — 通过反证逼近真相的通用深度研究 Agent",
   "private": true,
   "repository": {
@@ -24,6 +24,7 @@
     "test": "turbo test"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@turbo/darwin-arm64": "^2.9.6",
     "@types/node": "^22.0.0",
     "prettier": "^3.4.0",

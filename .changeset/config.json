@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
+  "changelog": false,
+  "commit": false,
+  "fixed": [["@contritas/shared", "@contritas/llm", "@contritas/search", "@contritas/workflow", "@contritas/api", "@contritas/web"]],
+  "linked": [],
+  "access": "restricted",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [],
+  "privatePackages": {
+    "version": true,
+    "tag": false
+  }
+}

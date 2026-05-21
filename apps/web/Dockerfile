@@ -56,5 +56,11 @@ EXPOSE 3000
 RUN chown -R node:node /app
 USER node
 
+# Next.js has no dedicated /health route; root path returning 200 is a fine
+# liveness signal. Allow a generous start-period since standalone server cold
+# start can take a few seconds.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- http://localhost:3000/ >/dev/null 2>&1 || exit 1
+
 # Next.js standalone server entrypoint
 CMD ["node", "apps/web/server.js"]

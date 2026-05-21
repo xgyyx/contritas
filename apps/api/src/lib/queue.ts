@@ -22,7 +22,10 @@ export function getResearchQueue(): Queue<ResearchJobData> {
     researchQueue = new Queue<ResearchJobData>("research", {
       connection: getRedis(),
       defaultJobOptions: {
-        attempts: 3,
+        // attempts: 1 short-term — without an idempotency key, retries would
+        // re-run LLM/search calls and double-bill. Long-term: cache LLM/search
+        // responses keyed by (sessionId, phase, actorName) and bump back to 3.
+        attempts: 1,
         backoff: { type: "exponential", delay: 5000 },
         removeOnComplete: { age: 7 * 24 * 3600 }, // 7 days
         removeOnFail: { age: 30 * 24 * 3600 }, // 30 days

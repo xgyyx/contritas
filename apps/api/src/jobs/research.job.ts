@@ -33,6 +33,14 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
     return;
   }
 
+  // Defensive guard against stalled-job redelivery re-running a finished
+  // session. Even with attempts:1, BullMQ may re-deliver a job whose lock
+  // expired; we don't want to repeat a completed pipeline.
+  if (session.status === "completed" || session.status === "failed") {
+    log.info({ status: session.status }, "session already terminal, skipping");
+    return;
+  }
+
   // Create LLM provider
   const sessionConfig = session.config as { llmProvider: string; llmModel: string };
   const appConfig = loadConfig();

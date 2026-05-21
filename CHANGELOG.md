@@ -4,13 +4,20 @@
 
 ## [Unreleased]
 
-### Planned — Phase 6 收尾批
-- BullMQ 幂等保护 + DLQ 监控（6.3.4 / 6.3.6）
+### Added — Phase 6 CD 前置批（6.3.4 / 6.8.3 / 6.8.7 / 6.9.5 / 6.9.8 / 6.9.9）
+- **BullMQ 短期降级**（6.3.4）：`attempts: 3 → 1` 避免 retry 重复扣 LLM/搜索费用；worker 入口对 `completed` / `failed` 状态短路防 stalled job 重投递；长期 idempotency key 留作后续 ticket。
+- **Dockerfile HEALTHCHECK**（6.8.3）：`apps/api/Dockerfile` + `apps/web/Dockerfile` production stage 加 HEALTHCHECK，`docker run` 不依赖 compose 也能拿到 healthy 状态。
+- **自动 migration**（6.8.7）：生成首版 drizzle migrations（`apps/api/src/drizzle/migrations/0000_*.sql`）；新增 `src/scripts/migrate.ts`（编译为 `dist/scripts/migrate.js`）；`apps/api/docker-entrypoint.sh` 在启动 CMD 前跑 migrate；`RUN_MIGRATIONS=false` 跳过；compose worker 服务设置 `RUN_MIGRATIONS=false` + `depends_on.api: service_healthy` 避免双跑争 advisory lock。
+- **版本号对齐**（6.9.5）：根 `package.json` + 所有 workspace package 从 `0.1.0` 升至 `0.6.0`，与 CHANGELOG 对齐。
+- **changesets 版本自动化**（6.9.9）：引入 `@changesets/cli`（`fixed` 配置共版本，root changelog 关闭）；新增 `.github/workflows/changeset-check.yml`（PR 必带 changeset，文档/CI 类用 `--empty` 跳过）+ `.github/workflows/changesets-release.yml`（merge to main 自动开/更新 release PR，merge release PR 推 git tag）。
+- **Release Publishing**（6.9.8）：新增 `.github/workflows/release.yml`，tag `v*.*.*` 触发 → 多架构（amd64 + arm64）构建并 push 到 `ghcr.io/xgyyx/contritas-api` / `contritas-web`，同时打 `latest`；`scripts/extract-changelog.mjs` 从 CHANGELOG 抽取本版本段落作为 GitHub Release notes。
+
+### Planned — Phase 6 剩余批
+- DLQ 监控（6.3.6）
 - 请求日志中间件 / `/metrics` Prometheus 端点 / Sentry / health check 扩展（6.6.4-6.6.7）
 - workflow actor 单测 / web 组件测试 / BullMQ 行为回归（6.7.2 / 6.7.3 / 6.7.6）
-- Dockerfile HEALTHCHECK 指令 + 自动 migration（6.8.3 / 6.8.7）
-- pre-commit / ESLint flat config / `noUncheckedIndexedAccess` / dev.sh worker 拉起（6.9.2-6.9.6）
-- 文档收尾：deployment 加固说明、各 README 同步、data-model 索引更新（6.10.x）
+- pre-commit / ESLint flat config / `noUncheckedIndexedAccess` / dev.sh worker 拉起（6.9.2-6.9.4 / 6.9.6 / 6.9.7）
+- 文档收尾：CLAUDE.md 进度同步、各 README 生产部署、data-model 索引更新（6.10.x）
 
 ---
 
