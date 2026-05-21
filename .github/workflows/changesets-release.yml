@@ -35,11 +35,23 @@ jobs:
 
       # When the main branch has unconsumed changesets, this opens / updates a
       # "chore: release" PR that bumps versions and consumes the .changeset/
-      # files. Merging that PR pushes git tags, which trigger release.yml.
+      # files. Merging that PR causes a second run where hasChangesets=false,
+      # at which point the next step pushes a unified vX.Y.Z tag to trigger
+      # release.yml.
+      #
+      # Uses RELEASE_PAT (fine-grained PAT, Contents+PRs RW on this repo) so
+      # that pushed commits/tags can trigger downstream workflows — the
+      # default GITHUB_TOKEN is blocked from triggering other workflows by
+      # design.
       - uses: changesets/action@v1
+        id: changesets
         with:
           version: pnpm changeset version
-          publish: pnpm changeset tag
+          # Intentionally NOT setting `publish:` — `pnpm changeset tag` would
+          # emit per-package tags like `@contritas/api@0.6.0` (or nothing at
+          # all, since all packages are private with `privatePackages.tag:
+          # false`). Neither matches release.yml's `v*.*.*` trigger. We push
+          # a single repo-wide tag in the next step instead.
           title: "chore: release"
           commit: "chore: release"
           # The root CHANGELOG.md is hand-maintained in Chinese (keepachangelog
@@ -49,4 +61,30 @@ jobs:
           # action's built-in release creation to avoid duplicate Releases.
           createGithubReleases: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
+
+      # Runs only on the post-merge invocation: hasChangesets becomes 'false'
+      # once the release PR is merged and .changeset/*.md have been consumed.
+      # Reads the root package.json version (bumped by `changeset version`)
+      # and pushes a single `vX.Y.Z` tag — release.yml picks this up.
+      - name: Push unified vX.Y.Z tag
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists locally, skipping"
+            exit 0
+          fi
+          if git ls-remote --exit-code --tags origin "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists on origin, skipping"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "Pushed $TAG"
