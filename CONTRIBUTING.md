@@ -96,14 +96,50 @@ refactor(workflow): extract retry logic to shared utility
    pnpm turbo test
    ```
 
-2. PR 标题遵循 commit message 格式
+2. **添加 changeset**（见下节）：除纯文档/CI 配置外，所有 PR 都要带一个 changeset 文件，否则 `Changeset Check` job 会挂。
 
-3. PR 描述包含：
+3. PR 标题遵循 commit message 格式
+
+4. PR 描述包含：
    - 变更概述（做了什么、为什么）
    - 测试方式
    - 截图（如涉及 UI 变更）
 
-4. 等待 CI 全绿 + Review 通过后合并
+5. 等待 CI 全绿 + Review 通过后合并
+
+## Changesets（版本与发布）
+
+我们用 [changesets](https://github.com/changesets/changesets) 管理版本号。所有 workspace package（`@contritas/*`）通过 `fixed` 配置共版本，根 `package.json` 单独记 `0.6.0`。
+
+### 何时加 changeset
+
+| PR 类型 | 是否需要 |
+| --- | --- |
+| 新功能（`feat`）/ 修复（`fix`）/ 重构（`refactor`）/ 依赖升级 | ✅ 需要带变更类型（patch / minor / major） |
+| 纯文档（`docs/**`、根目录 `*.md`）、CI 配置、内部样式 | ❌ 用 `pnpm changeset --empty` 提交一个空 changeset 跳过版本变更 |
+
+### 命令
+
+```bash
+# 交互式创建（选择 patch/minor/major + 写说明）
+pnpm changeset
+
+# 文档/工具类 PR：跳过版本变更
+pnpm changeset --empty
+
+# 本地预览将产生的版本号变化（不写入文件）
+pnpm changeset status
+```
+
+`pnpm changeset` 会在 `.changeset/<random-name>.md` 写一份 markdown，**记得 commit 进 PR**。
+
+### 发布流程（自动化）
+
+1. PR merge 到 `main` → `Release PR` workflow（`.github/workflows/changesets-release.yml`）会消费所有未处理的 changeset，开/更新一个标题为 `chore: release` 的 PR，里面把 `package.json` 版本号 bump，并把 `.changeset/*.md` 移到对应 package 的 `CHANGELOG.md`。
+2. 你 review 这个 release PR（必要时手动整理生成的 changelog 段落同步到根 `CHANGELOG.md`），merge 之。
+3. merge 后 `changesets/action` 会推 `v0.x.y` git tag → 触发 `release.yml` → 多架构构建并 push 镜像到 GHCR + 自动生成 GitHub Release notes。
+
+> 当前 changesets 配置 `"changelog": false`——package 级 changelog 由工具生成，根 `CHANGELOG.md` 仍按 keepachangelog 中文风格手动维护，避免风格冲突。
 
 ## CI 自动检查
 

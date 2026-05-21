@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write   # create GitHub Release
+  packages: write   # push to GHCR
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  API_IMAGE: ghcr.io/xgyyx/contritas-api
+  WEB_IMAGE: ghcr.io/xgyyx/contritas-web
+
+jobs:
+  publish:
+    name: Build & push images, create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version tag
+        id: meta
+        run: |
+          # Strip leading "v" — "v0.6.0" → "0.6.0"
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # QEMU is needed to cross-build linux/arm64 from a linux/amd64 runner.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.API_IMAGE }}:${{ steps.meta.outputs.version }}
+            ${{ env.API_IMAGE }}:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build & push Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          # NEXT_PUBLIC_* are baked into the JS bundle at build time. The web
+          # Dockerfile fails the build if either is empty, so configure
+          # repo Settings → Variables (RELEASE_NEXT_PUBLIC_API_URL) and
+          # Settings → Secrets (RELEASE_NEXT_PUBLIC_API_TOKEN) before tagging.
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ vars.RELEASE_NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_API_TOKEN=${{ secrets.RELEASE_NEXT_PUBLIC_API_TOKEN }}
+          tags: |
+            ${{ env.WEB_IMAGE }}:${{ steps.meta.outputs.version }}
+            ${{ env.WEB_IMAGE }}:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          node scripts/extract-changelog.mjs "${{ steps.meta.outputs.version }}" > release-notes.md
+          echo "--- release-notes.md ---"
+          cat release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: v${{ steps.meta.outputs.version }}
+          body_path: release-notes.md
+          generate_release_notes: false
+          draft: false
+          prerelease: false

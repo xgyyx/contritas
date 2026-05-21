@@ -13,7 +13,7 @@
 | Phase 3 | 分析与报告     | ✅ 已完成 | [phase3-progress.md](./phase3-progress.md) |
 | Phase 4 | 前端           | ✅ 已完成 | [phase4-progress.md](./phase4-progress.md) |
 | Phase 5 | 优化与扩展     | ✅ 已完成 | [phase5-progress.md](./phase5-progress.md) |
-| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — Sprint A ✅（6.1/6.2/6.4 + 6.3 核心 + 6.8 容器加固）；Sprint B ✅（6.6 pino + correlation id + errorId / 6.9.1 CI / 6.7.1 API 集成 + 6.7.4 e2e）；Sprint C ✅（6.5 两档路由 + structured output + caching + Top-K + split-retry，6.5.3 流式输出弃案）；6.10 文档同步 / 6.7 剩余 / 6.9 剩余 待办 |
+| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — Sprint A/B/C ✅；CD 前置批 ✅（6.3.4 短期降级 / 6.8.3 HEALTHCHECK / 6.8.7 自动 migration / 6.9.5 版本对齐 / 6.9.8 GHCR release / 6.9.9 changesets）；6.6 剩余 / 6.7 剩余 / 6.9 剩余（pre-commit/eslint/dev.sh/.gitignore）/ 6.10 文档同步 待办 |
 
 ---
 
@@ -89,7 +89,7 @@
 - [x] 修复 `handleAwaitingClarification` 的双 message handler + cleanup 不触发缺陷
 - [x] `extendLock(job.token ?? "", ...)` 在 token 缺失时硬失败而不是空串吞掉
 - [x] XState `actor.subscribe` 改为 enter-state 边沿触发，避免同一 `awaitingClarification` 多次进入引发并发 wait
-- [ ] BullMQ `attempts: 3` 配套幂等保护（or 暂时降为 1），避免 LLM/搜索重复扣费、SSE 事件重复
+- [x] BullMQ `attempts: 3` → `1`（短期降级，避免 LLM/搜索重复扣费）；`completed`/`failed` 状态短路；长期 idempotency key 留作后续 ticket
 - [ ] `loadConfig` 在 worker 启动时一次性加载，去掉 `processResearchJob` 中的 dynamic import
 - [x] Worker / 队列长任务 lock 续期间隔（建议 15s）独立于 clarification 超时
 - [ ] Dead-letter queue（failed jobs）的容量监控与告警
@@ -139,11 +139,11 @@
 - [x] 健康检查端点（`GET /health`）— 检测 DB + Redis 连通性
 - [x] 优雅关闭真正等待进行中连接（当前 `server.close()` 不 await 活跃请求）
 - [x] 容器以非 root 用户运行（`USER node` + 文件权限）
-- [ ] `apps/api/Dockerfile` 增加 `HEALTHCHECK` 指令（compose 之外也可用）
+- [x] `apps/api/Dockerfile` + `apps/web/Dockerfile` 加 `HEALTHCHECK` 指令（compose 之外也可用）
 - [x] `docker-compose.prod.yml` 移除 `POSTGRES_PASSWORD: prod_secret` 默认值，改为 `${POSTGRES_PASSWORD:?required}`
 - [x] 生产 compose 不再把 Postgres `5432` 暴露到宿主机
 - [x] 生产 compose 透传 `OPENAI_COMPATIBLE_*` 等可选 LLM env 至 api/worker
-- [ ] 容器启动时自动执行 migration（或单独的 migration job）
+- [x] 容器启动时自动执行 migration（api entrypoint 跑 `drizzle-orm` migrator；worker 通过 `RUN_MIGRATIONS=false` + `depends_on api healthy` 跳过）
 - [x] `apps/web/Dockerfile` 生产阶段的 `NEXT_PUBLIC_API_URL` 默认值移除，强制部署方显式注入
 - [x] `apps/api/src/drizzle/index.ts` 默认值改为 fail-fast，禁止在 env 缺失时回落到 dev 凭据
 
@@ -152,11 +152,11 @@
 - [ ] 引入 pre-commit hook（husky + lint-staged + prettier --write）
 - [ ] 全仓 ESLint config + 各 package 补 `lint` 脚本（让 `pnpm lint` 真的有用）
 - [ ] `tsconfig.base.json` 开启 `noUncheckedIndexedAccess`
-- [ ] 修正 `package.json` 版本与 CHANGELOG 对齐（当前 0.1.0 vs CHANGELOG 0.6.0）
+- [x] 修正 `package.json` 版本与 CHANGELOG 对齐（统一升至 0.6.0，配套 changesets 自动化）
 - [ ] `scripts/dev.sh` 同时启动 API + Worker（当前只启 API）
 - [ ] `.gitignore` 补 `.env.local` `.env.production`；`.dockerignore` 覆盖 `.env.*`
-- [ ] Release Publishing：tag 触发 workflow → `docker buildx --push` 到 GHCR（`ghcr.io/<owner>/contritas-api:$TAG` / `-web:$TAG`，同时 push `latest`）+ 自动从 CHANGELOG 抽取版本段落生成 GitHub Release notes
-- [ ] Version 自动化：引入 changesets 或 release-please，PR 合并触发版本 bump + CHANGELOG 更新 + tag 推送（顺便修 `package.json` vs CHANGELOG 漂移）
+- [x] Release Publishing：`.github/workflows/release.yml` 在 `v*.*.*` tag 触发，`docker buildx --push` 多架构镜像（amd64+arm64）到 `ghcr.io/xgyyx/contritas-{api,web}:<version>` 同时 push `latest`；`scripts/extract-changelog.mjs` 抽 CHANGELOG 段落作 Release notes
+- [x] Version 自动化：引入 changesets（`fixed` 共版本，根 CHANGELOG 仍手动维护），PR 必带 changeset，merge 后自动 release PR，merge release PR 推 tag 触发 6.9.8
 
 #### 6.10 文档与一致性
 - [ ] `CLAUDE.md` 进度区块与本 roadmap 对齐（6.5 改为部分完成）
