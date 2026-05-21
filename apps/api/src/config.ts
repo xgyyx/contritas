@@ -14,6 +14,12 @@ export interface AppConfig {
   databaseUrl: string;
   redisUrl: string;
   llmProvider: ProviderConfig;
+  /**
+   * Optional cheap-tier model id (Sprint C). When set, retrieval / evidence
+   * evaluation / input validation route to this model instead of the default.
+   * Unset → falls back to the premium model for all phases.
+   */
+  cheapModel?: string;
   search: SearchConfig;
   port: number;
   webOrigins: string[];
@@ -35,11 +41,13 @@ export function loadConfig(): AppConfig {
   const search = loadSearchConfig();
   const webOrigins = loadWebOrigins();
   const authTokens = loadAuthTokens();
+  const cheapModel = process.env.LLM_MODEL_CHEAP?.trim() || undefined;
 
   return {
     databaseUrl,
     redisUrl,
     llmProvider,
+    cheapModel,
     search,
     port: parseInt(process.env.PORT ?? "4000", 10),
     webOrigins,

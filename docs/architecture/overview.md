@@ -151,7 +151,7 @@ contritas/
 | 风险              | 影响                               | 应对                                                                      |
 | ----------------- | ---------------------------------- | ------------------------------------------------------------------------- |
 | 搜索 API 成本过高 | 高复杂度会话 150 次搜索            | 搜索结果缓存 24h；相似查询去重；Tavily advanced 模式减少提取次数          |
-| LLM 成本不可控    | 单次研究可能消耗大量 token         | Model Router 分层：贵模型用于关键 Phase，便宜模型用于提取；Token 预算机制 |
+| LLM 成本不可控    | 单次研究可能消耗大量 token         | 两档 Model Router（`LLM_MODEL_CHEAP` env + `createTieredRoutingConfig`）：cheap 跑 inputValidation/retrieval，default 跑 decomposition/planning/validation/synthesis；synthesize / cross-validate 开启 Anthropic prompt caching；Token 预算机制 |
 | 长时任务可靠性    | 60 分钟内 Worker/Redis/DB 可能故障 | XState 持久化 + BullMQ 重试 + 幂等设计                                    |
 | 搜索结果中文质量  | Tavily 中文覆盖可能不全            | Serper 备份 + 百度/搜狗 API 可选扩展                                      |
 | 页面提取失败率    | 部分网站反爬严格                   | 多提取器降级链 + 接受部分缺失（PRD 允许标注"证据不足"）                   |

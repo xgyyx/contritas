@@ -68,7 +68,7 @@ cd apps/api && pnpm db:push       # 推送到 DB
 
 前端：`NEXT_PUBLIC_API_URL`（默认 `http://localhost:4000`）
 
-可选：`ANTHROPIC_BASE_URL`, `SERPER_API_KEY`, `JINA_API_KEY`, `FIRECRAWL_API_KEY`
+可选：`ANTHROPIC_BASE_URL`, `SERPER_API_KEY`, `JINA_API_KEY`, `FIRECRAWL_API_KEY`, `LLM_MODEL_CHEAP`（Sprint C 两档路由的 cheap 档模型 id；留空时所有 phase 都走默认模型）
 
 完整列表见 `.env.example`。
 
@@ -113,7 +113,7 @@ Schema 定义：`apps/api/src/drizzle/schema.ts`（Drizzle 格式，以代码为
 - Phase 3 分析与报告 ✅（交叉验证 + 报告综合 + 评分 + 自检）
 - Phase 4 前端 ✅（Next.js + SSE 实时 + 报告查看 + 历史 + 迭代交互）
 - Phase 5 优化与扩展 ✅（ModelRouter 路由 + Token 预算 + 搜索缓存优化 + ETA 事件 + 迭代修复）
-- Phase 6 加固与生产就绪 🚧（10 个子领域：6.1 安全鉴权 ✅ / 6.2 数据一致性 ✅ / 6.3 Worker 稳定性（核心 clarification 三项 + loadConfig 单例 ✅）/ 6.4 SSE 可靠性 ✅ / 6.5 LLM 可靠性与成本 / 6.6 可观测性（pino + 三级 correlation id + errorId ✅）/ 6.7 测试覆盖（API 集成 + e2e ✅）/ 6.8 容器化加固（核心七项 ✅，HEALTHCHECK / auto-migration 待办）/ 6.9 DX 工程化（GitHub Actions CI ✅）/ 6.10 文档同步）
+- Phase 6 加固与生产就绪 🚧（10 个子领域：6.1 安全鉴权 ✅ / 6.2 数据一致性 ✅ / 6.3 Worker 稳定性（核心 clarification 三项 + loadConfig 单例 ✅）/ 6.4 SSE 可靠性 ✅ / 6.5 LLM 可靠性与成本 ✅（两档路由 + tool_use / json_schema + prompt caching + Top-K + split-retry；6.5.3 流式输出已弃）/ 6.6 可观测性（pino + 三级 correlation id + errorId ✅）/ 6.7 测试覆盖（API 集成 + e2e ✅）/ 6.8 容器化加固（核心七项 ✅，HEALTHCHECK / auto-migration 待办）/ 6.9 DX 工程化（GitHub Actions CI ✅）/ 6.10 文档同步）
 
 总体规划详见 `docs/progress/roadmap.md`，工单级执行手册详见 `docs/progress/phase6-progress.md`。
 

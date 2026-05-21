@@ -13,7 +13,7 @@
 | Phase 3 | 分析与报告     | ✅ 已完成 | [phase3-progress.md](./phase3-progress.md) |
 | Phase 4 | 前端           | ✅ 已完成 | [phase4-progress.md](./phase4-progress.md) |
 | Phase 5 | 优化与扩展     | ✅ 已完成 | [phase5-progress.md](./phase5-progress.md) |
-| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — Sprint A ✅（6.1/6.2/6.4 + 6.3 核心 + 6.8 容器加固）；Sprint B ✅（6.6 pino + correlation id + errorId / 6.9.1 CI / 6.7.1 API 集成 + 6.7.4 e2e）；Sprint C 待办（6.5 LLM 可靠性与成本）；6.10 文档同步 / 6.7 剩余 / 6.9 剩余 待办 |
+| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — Sprint A ✅（6.1/6.2/6.4 + 6.3 核心 + 6.8 容器加固）；Sprint B ✅（6.6 pino + correlation id + errorId / 6.9.1 CI / 6.7.1 API 集成 + 6.7.4 e2e）；Sprint C ✅（6.5 两档路由 + structured output + caching + Top-K + split-retry，6.5.3 流式输出弃案）；6.10 文档同步 / 6.7 剩余 / 6.9 剩余 待办 |
 
 ---
 
@@ -103,16 +103,16 @@
 - [x] `getEventHistory` 支持 `Last-Event-ID` / `?lastEventId=` 增量回放
 - [x] 心跳事件改为 SSE 注释行格式（`event: heartbeat` + 空 data，浏览器 EventSource 不触发 onmessage）
 
-#### 6.5 LLM 可靠性与成本
-- [ ] 接入 Anthropic 原生 Structured Output（tool_use / JSON mode）
-- [ ] 接入 OpenAI JSON mode（`response_format`）
-- [ ] 实际启用 Model Router 差异化路由（便宜模型用于 evidence eval，贵模型用于 synthesis）
-- [ ] 报告生成流式输出到前端（使用 chatStream）
-- [ ] 启用 Anthropic prompt caching（synthesize/cross-validate 的 system prompt + 大上下文块）
-- [ ] `synthesize-report.ts` 的 `maxTokens: 16384` 与目标模型上限做兼容检查（Haiku 上限 8192）
-- [ ] Synthesize 阶段按 dimension 截断 evidence 至 top-N，避免无上限拼接
-- [ ] `evaluateEvidence` batch 失败时改为缩小 batch 重试，而不是整批吞错
-- [ ] `refineKeywords` 失败时不再原样返回旧关键词（否则下轮全被去重命中导致空转）
+#### 6.5 LLM 可靠性与成本 ✅
+- [x] 接入 Anthropic 原生 Structured Output（tool_use + 强制 tool_choice）
+- [x] 接入 OpenAI JSON mode（`response_format: json_schema strict`，failure 时回退 non-strict 再回退 prompt）
+- [x] 实际启用 Model Router 差异化路由（`LLM_MODEL_CHEAP` env + DEFAULT_PHASE_TIERS：inputValidation/retrieval → cheap，其余 default）
+- [x] ~~报告生成流式输出到前端~~（弃案：研究耗时长，用户不会停在前端等）
+- [x] 启用 Anthropic prompt caching（synthesize/cross-validate 的 system prompt 标 `cache_control: ephemeral`，TokenUsage 新增 cacheRead/Creation 字段并折算计费）
+- [x] `synthesize-report.ts` 的 `maxTokens` 改为 `getModelMaxOutput(provider, model)` 动态查询模型上限
+- [x] Synthesize 阶段按 dimension 取 top-K=5（credibility × recency 排序），其余作为引用 tail
+- [x] `evaluateEvidence` batch 失败时拆半递归重试，只在单条 batch 失败时才丢并 warn
+- [x] `refineKeywords` 失败时返回空数组（caller break 当前维度搜索循环，不再空转）
 
 #### 6.6 可观测性
 - [ ] 结构化日志（pino 或同等）替换所有 `console.log/error`，统一字段 + 级别

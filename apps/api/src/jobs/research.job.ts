@@ -41,11 +41,15 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
 
   const input = session.input as { originalText: string; language: "zh" | "en" };
 
-  // Build search dependencies
-  const searchDeps = buildSearchDeps(appConfig.search);
-
-  // Create workflow controller
+  // Resolve the premium ("default" tier) model and the optional cheap-tier
+  // model. cheapModel falls back to the premium model when unset so the
+  // two-tier router degrades gracefully into single-model behavior.
   const model = sessionConfig.llmModel || process.env.OPENAI_COMPATIBLE_MODEL || "claude-sonnet-4-20250514";
+  const cheapModel = appConfig.cheapModel || model;
+
+  // Build search dependencies — pass cheapModel as the evidence-eval model
+  // so search-dimensions / orchestrator route to Haiku-class for extraction.
+  const searchDeps = buildSearchDeps(appConfig.search, cheapModel);
 
   let controller;
   if (parentSessionId && iterationType) {
@@ -62,6 +66,7 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
       initialState,
       llmProvider,
       model,
+      cheapModel,
       searchDeps,
     );
   } else {
@@ -71,6 +76,7 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
       input.language,
       llmProvider,
       model,
+      cheapModel,
       searchDeps,
     );
   }

@@ -62,6 +62,9 @@ For each dimension, analyze consistency and assign a verdict. Return the dimensi
     systemPrompt: PHASE4_SYSTEM_PROMPT,
     schema: phase4OutputSchema,
     temperature: 0,
+    // PHASE4_SYSTEM_PROMPT is large and identical across calls — cache it
+    // on Anthropic to amortize input cost across re-runs / iterate flows.
+    cacheSystem: true,
   });
 
   // Map LLM output to CrossValidationData. Use only real evidence ids: filter out anything the LLM

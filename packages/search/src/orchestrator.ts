@@ -105,9 +105,15 @@ export class SearchOrchestrator {
       // 5. Check sufficiency
       if (this.isSufficient(evidence)) break;
 
-      // 6. Refine keywords for next round (if not last round)
+      // 6. Refine keywords for next round (if not last round). If refine
+      //    gives up (returns empty arrays), break: another round with no
+      //    new queries would be pure waste.
       if (round < input.maxRounds && !this.callCounter.exhausted) {
-        currentKeywords = await this.refineKeywords(evidence, input, usedQueries);
+        const refined = await this.refineKeywords(evidence, input, usedQueries);
+        if (refined.zh.length === 0 && refined.en.length === 0) {
+          break;
+        }
+        currentKeywords = refined;
       }
     }
 
@@ -244,19 +250,70 @@ export class SearchOrchestrator {
     round: number,
     usedQueries: string[]
   ): Promise<EvidenceCandidate[]> {
-    const candidates: EvidenceCandidate[] = [];
     const batchSize = 5;
-
+    const batches: ExtractedContent[][] = [];
     for (let i = 0; i < contents.length; i += batchSize) {
-      const batch = contents.slice(i, i + batchSize);
-      const contentSummaries = batch.map((c, idx) => {
+      batches.push(contents.slice(i, i + batchSize));
+    }
+
+    const results = await Promise.all(
+      batches.map((b) => this.processBatch(b, dimension, round, usedQueries))
+    );
+    return results.flat();
+  }
+
+  /**
+   * Evaluate a batch with split-retry: if the LLM rejects the whole batch
+   * (oversize / unparseable / one toxic payload), recurse on halves so good
+   * items still make it through. Only fully drop a single item after it has
+   * been isolated, and log the drop.
+   */
+  private async processBatch(
+    batch: ExtractedContent[],
+    dimension: DimensionSearchInput,
+    round: number,
+    usedQueries: string[],
+    depth = 0
+  ): Promise<EvidenceCandidate[]> {
+    try {
+      return await this.evaluateBatchOnce(batch, dimension, round, usedQueries);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (batch.length === 1) {
+        const url = batch[0]?.url ?? "unknown";
+        console.warn(
+          `[evaluateEvidence] dropping single content after retry: url=${url} depth=${depth} err=${message}`
+        );
+        return [];
+      }
+      const mid = Math.floor(batch.length / 2);
+      console.debug(
+        `[evaluateEvidence] split-retry size=${batch.length} depth=${depth} err=${message}`
+      );
+      const [left, right] = await Promise.all([
+        this.processBatch(batch.slice(0, mid), dimension, round, usedQueries, depth + 1),
+        this.processBatch(batch.slice(mid), dimension, round, usedQueries, depth + 1),
+      ]);
+      return [...left, ...right];
+    }
+  }
+
+  private async evaluateBatchOnce(
+    batch: ExtractedContent[],
+    dimension: DimensionSearchInput,
+    round: number,
+    usedQueries: string[]
+  ): Promise<EvidenceCandidate[]> {
+    const contentSummaries = batch
+      .map((c, idx) => {
         // Truncate content to ~2000 chars to fit in LLM context
         const truncated = c.content.length > 2000 ? c.content.slice(0, 2000) + "..." : c.content;
         const body = `Title: ${c.title}\n${truncated}`;
         return `--- Content ${idx + 1} ---\n${wrapExternalContent(body, { kind: "web-page", source: c.url })}\n`;
-      }).join("\n");
+      })
+      .join("\n");
 
-      const userMessage = `## Research Dimension
+    const userMessage = `## Research Dimension
 Name: ${dimension.name}
 Core Question: ${dimension.coreQuestion}
 Counter-Question: ${dimension.counterQuestion}
@@ -267,39 +324,34 @@ ${contentSummaries}
 
 Evaluate each content piece. Respond with JSON.`;
 
-      try {
-        const { data } = await this.llmProvider.structuredOutput({
-          model: this.llmModel,
-          messages: [{ role: "user", content: userMessage }],
-          schema: phase3EvidenceEvalSchema,
-          systemPrompt: PHASE3_EVIDENCE_EVAL_SYSTEM_PROMPT + EXTERNAL_CONTENT_SAFETY_CLAUSE,
-          temperature: 0.1,
-        });
+    const { data } = await this.llmProvider.structuredOutput({
+      model: this.llmModel,
+      messages: [{ role: "user", content: userMessage }],
+      schema: phase3EvidenceEvalSchema,
+      systemPrompt: PHASE3_EVIDENCE_EVAL_SYSTEM_PROMPT + EXTERNAL_CONTENT_SAFETY_CLAUSE,
+      temperature: 0.1,
+    });
 
-        for (const evaluation of data.evaluations) {
-          if (!evaluation.relevant) continue;
+    const candidates: EvidenceCandidate[] = [];
+    for (const evaluation of data.evaluations) {
+      if (!evaluation.relevant) continue;
 
-          const matchingContent = batch.find((c) => c.url === evaluation.url);
-          candidates.push({
-            url: evaluation.url,
-            title: matchingContent?.title ?? "",
-            sourceName: evaluation.sourceName,
-            sourceType: evaluation.sourceType,
-            credibility: evaluation.credibility,
-            publishedDate: evaluation.publishedDate,
-            language: this.detectLanguage(matchingContent?.content ?? ""),
-            keyExcerpt: evaluation.keyExcerpt,
-            relationship: evaluation.relationship,
-            timelinessRisk: evaluation.timelinessRisk,
-            searchQuery: usedQueries[usedQueries.length - 1] ?? "",
-            searchRound: round,
-          });
-        }
-      } catch {
-        // LLM evaluation failure for a batch is non-fatal — skip batch
-      }
+      const matchingContent = batch.find((c) => c.url === evaluation.url);
+      candidates.push({
+        url: evaluation.url,
+        title: matchingContent?.title ?? "",
+        sourceName: evaluation.sourceName,
+        sourceType: evaluation.sourceType,
+        credibility: evaluation.credibility,
+        publishedDate: evaluation.publishedDate,
+        language: this.detectLanguage(matchingContent?.content ?? ""),
+        keyExcerpt: evaluation.keyExcerpt,
+        relationship: evaluation.relationship,
+        timelinessRisk: evaluation.timelinessRisk,
+        searchQuery: usedQueries[usedQueries.length - 1] ?? "",
+        searchRound: round,
+      });
     }
-
     return candidates;
   }
 
@@ -342,9 +394,15 @@ Analyze gaps and suggest new keywords. Respond with JSON.`;
       });
 
       return data.newKeywords;
-    } catch {
-      // If keyword refinement fails, return original keywords shuffled
-      return dimension.keywords;
+    } catch (err) {
+      // 6.5.8: returning the old keywords meant the next round generated
+      // zero new queries after dedup, looping uselessly. Returning empty
+      // signals the caller to stop the dimension's search loop.
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[refineKeywords] giving up: dim=${dimension.dimensionId} round=${usedQueries.length} err=${message}`
+      );
+      return { zh: [], en: [] };
     }
   }
 

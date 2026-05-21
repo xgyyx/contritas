@@ -110,7 +110,10 @@ export interface SearchDeps {
   searchConcurrencyLimit: number;
   extractConcurrencyLimit: number;
   maxSearchCallsPerSession: number;
-  /** LLM model to use for evidence evaluation (can be cheaper model) */
+  /**
+   * LLM model used for evidence evaluation and keyword refinement (cheap tier).
+   * If unset, search-dimensions falls back to getModelForPhase("retrieval").
+   */
   evidenceEvalModel?: string;
 }
 

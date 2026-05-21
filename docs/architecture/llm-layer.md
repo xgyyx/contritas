@@ -20,10 +20,10 @@
 核心接口定义见 `packages/llm/src/types.ts`，主要包括：
 
 - `LLMProvider` — 统一的 Provider 接口，包含 `chat()`、`chatStream()`、`structuredOutput()` 三个方法
-- `ChatParams` — 聊天请求参数（model、messages、temperature、maxTokens、systemPrompt）
+- `ChatParams` — 聊天请求参数（model、messages、temperature、maxTokens、systemPrompt、`cacheSystem`）
 - `ChatResponse` — 响应体（content、usage、finishReason）
-- `StructuredParams<T>` — 结构化输出参数，使用 Zod schema 校验输出
-- `TokenUsage` — Token 用量追踪（inputTokens、outputTokens、estimatedCostUSD）
+- `StructuredParams<T>` — 结构化输出参数，使用 Zod schema 校验输出（继承 `cacheSystem`）
+- `TokenUsage` — Token 用量追踪（inputTokens、outputTokens、estimatedCostUSD，可选 `cacheReadInputTokens` / `cacheCreationInputTokens`）
 
 ---
 
@@ -52,42 +52,90 @@ OPENAI_COMPATIBLE_MODEL=gpt-4o
 
 ---
 
-## 四、Model Router
+## 四、Model Router（Sprint C 两档路由）
 
-Model Router 允许按 Phase 路由到不同模型，配置结构：
+Model Router 把 6 个 phase 映射到 **default** 与 **cheap** 两档模型，policy 在 `packages/llm/src/router.ts` 的 `DEFAULT_PHASE_TIERS` 中。
 
-| Phase              | 推荐模型类型         | 理由                     |
-| ------------------ | -------------------- | ------------------------ |
-| inputValidation    | 需要判断力的模型     | Claude / GPT-4o          |
-| decomposition      | 需要深度推理         | Claude Opus              |
-| planning           | 结构化输出           | 任何能力模型             |
-| evidenceExtraction | 高频低成本           | DeepSeek / GPT-4o-mini   |
-| crossValidation    | 需要推理             | Claude / GPT-4o          |
-| synthesis          | 长输出、高质量       | Claude                   |
+| Phase             | Tier    | 理由                            |
+| ----------------- | ------- | ------------------------------- |
+| inputValidation   | cheap   | 二分类、低风险                  |
+| decomposition     | default | 决定整研究框架质量              |
+| planning          | default | 查询设计的复利效应              |
+| retrieval         | cheap   | 证据提取本质机械                |
+| validation        | default | 跨源推理                        |
+| synthesis         | default | 最终输出质量                    |
 
-具体配置见 `packages/llm/src/router.ts`。
+**配置方式**（env）：
 
-**使用方式**：`WorkflowDeps.getModelForPhase(phase)` 返回当前 phase 对应的模型名。默认通过 `createDefaultRoutingConfig(provider, model)` 创建配置，所有 phase 使用同一模型。可通过自定义 `ModelRoutingConfig` 实现按 phase 差异化路由。
+```bash
+LLM_PROVIDER=claude
+ANTHROPIC_API_KEY=sk-ant-xxx
+
+# 默认（高价值）模型 —— session 创建时可在 config.llmModel 覆盖
+# （历史上从 OPENAI_COMPATIBLE_MODEL 读取，留作 fallback）
+# Cheap-tier 模型 —— 留空则与默认模型一致（退化为单模型行为）
+LLM_MODEL_CHEAP=claude-haiku-3-5-20241022
+```
+
+**API**：
 
 ```typescript
-import { ModelRouter, createDefaultRoutingConfig } from "@contritas/llm";
+import { ModelRouter, createTieredRoutingConfig } from "@contritas/llm";
 
-// 默认：所有 phase 用同一模型
-const router = new ModelRouter(createDefaultRoutingConfig("claude", "claude-sonnet-4-20250514"));
+const router = new ModelRouter(
+  createTieredRoutingConfig("claude", "claude-sonnet-4-20250514", "claude-haiku-3-5-20241022")
+);
 
-// 自定义：synthesis 用更强模型
-router.updateConfig({
-  synthesis: { provider: "claude", model: "claude-opus-4-20250514" },
-  evidenceExtraction: { provider: "openai-compatible", model: "gpt-4o-mini" },
+router.getModelForPhase("synthesis"); // { provider: "claude", model: "claude-sonnet-4-..." }
+router.getModelForPhase("retrieval"); // { provider: "claude", model: "claude-haiku-3-5-..." }
+```
+
+向下兼容：`createDefaultRoutingConfig(provider, model)` 仍可用，等价于 `createTieredRoutingConfig(provider, model, model)`。
+
+**Search Orchestrator**：`buildSearchDeps(searchConfig, cheapModel)` 把 cheap-tier 模型注入 `SearchDeps.evidenceEvalModel`；orchestrator 用它做 evidence eval 与 keyword refine。
+
+---
+
+## 五、Structured Output 实现（Sprint C）
+
+为提高 JSON 解析鲁棒性，`structuredOutput()` 走 provider 原生结构化输出，并对不支持的部署 silent fallback 到 prompt-only 策略。
+
+```
+Claude:            messages.create + tools[{ name: "respond", input_schema }] + tool_choice
+                   ↓ 不支持时
+                   structuredOutputViaPrompt（"请仅返回 JSON" + 2 次解析重试）
+
+OpenAI-compatible: response_format: { type: "json_schema", strict: true }
+                   ↓ strict 不支持
+                   response_format: { type: "json_schema", strict: false }
+                   ↓ response_format 也不支持
+                   structuredOutputViaPrompt
+```
+
+依赖：[`zod-to-json-schema`](https://www.npmjs.com/package/zod-to-json-schema) 把 `z.ZodSchema` 转 JSON Schema。helper 在 `packages/llm/src/structured/json-schema.ts`；fallback predicates 在 `structured/predicates.ts`（每个 (provider, model) 仅 fallback debug 一次以抑制日志）。
+
+---
+
+## 六、Prompt Caching（Anthropic ephemeral）
+
+`ChatParams.cacheSystem: true` 时，Claude provider 把 `system` 字段渲染为带 `cache_control: { type: "ephemeral" }` 的 TextBlockParam，让 Anthropic 在 5 分钟 TTL 内复用 prompt prefix。
+
+**开启位置**：synthesize-report（PHASE5_SYSTEM_PROMPT ~5KB）、cross-validate（PHASE4_SYSTEM_PROMPT ~3KB）。这些 system 在 self-check 重试与 iterate 流程里相同，命中率高。其他 actor 太短，不值得开。
+
+**计费 / 监控**：`TokenUsage.cacheReadInputTokens`（按基准输入价 10% 计）与 `cacheCreationInputTokens`（按 125% 计）会在响应里返回。`buildUsage()` 直接折算到 `estimatedCostUSD`。
+
+```typescript
+const { usage } = await llmProvider.structuredOutput({
+  systemPrompt: PHASE5_SYSTEM_PROMPT,
+  cacheSystem: true,
+  // ...
 });
-
-// 在 WorkflowDeps 中使用
-const model = router.getModelForPhase("synthesis"); // { provider: "claude", model: "claude-opus-4-..." }
+// usage.cacheReadInputTokens > 0 即说明 cache 命中。
 ```
 
 ---
 
-## 五、Prompt 管理
+## 七、Prompt 管理
 
 各 Phase 的系统提示词位于 `packages/llm/src/prompts/`：
 

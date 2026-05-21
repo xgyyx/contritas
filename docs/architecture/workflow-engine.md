@@ -87,14 +87,17 @@ Phase 3 内部，每个维度的检索由一个子状态机驱动：
 
 ## 五、重试与降级策略
 
-| 故障类型                 | 策略                                        |
-| ------------------------ | ------------------------------------------- |
-| 搜索 API 超时            | 重试 1 次（5s 延迟），失败切备用 Provider   |
-| 搜索返回 0 结果          | 调整关键词（扩大范围/换语言），最多 3 轮    |
-| 页面无法提取             | Jina → Firecrawl → Web Archive → 跳过并记录 |
-| LLM API 错误             | 指数退避重试（1s/2s/4s），3 次后切备用模型  |
-| 触发限流                 | 排队等待，尊重 Retry-After                  |
-| 维度 5 轮后仍不足 3 来源 | 标注"证据不足"，继续后续阶段                |
+| 故障类型                          | 策略                                                                                       |
+| --------------------------------- | ------------------------------------------------------------------------------------------ |
+| 搜索 API 超时                     | 重试 1 次（5s 延迟），失败切备用 Provider                                                  |
+| 搜索返回 0 结果                   | 调整关键词（扩大范围/换语言），最多 3 轮                                                   |
+| 页面无法提取                      | Jina → Firecrawl → Web Archive → 跳过并记录                                                |
+| LLM API 错误                      | 指数退避重试（1s/2s/4s），3 次后切备用模型                                                 |
+| 触发限流                          | 排队等待，尊重 Retry-After                                                                 |
+| 维度 5 轮后仍不足 3 来源          | 标注"证据不足"，继续后续阶段                                                               |
+| `evaluateEvidence` batch 失败     | 拆半递归（`processBatch`），单条仍失败才丢并 warn —— 1 条毒数据不再吞掉整批（Phase 6.5.7） |
+| `refineKeywords` 失败             | 返回空 keywords，`searchDimension` 检测后 break 维度搜索循环（Phase 6.5.8）                |
+| `structuredOutput` provider 不兼容 | Claude tool_use → prompt fallback；OpenAI strict → non-strict → prompt fallback（Phase 6.5.1）|
 
 ---
 

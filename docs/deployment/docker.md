@@ -121,6 +121,7 @@ docker build -f apps/web/Dockerfile \
 | `PORT` | api | HTTP 端口 | `4000` |
 | `ANTHROPIC_BASE_URL` | api, worker | 自定义 Anthropic 端点（非 `*.anthropic.com` 触发 warn 日志） | 官方 API |
 | `OPENAI_COMPATIBLE_MODEL` | api, worker | 默认模型 ID | `gpt-4o` |
+| `LLM_MODEL_CHEAP` | api, worker | Sprint C 两档路由的 cheap 档模型 id（用于 inputValidation/retrieval phase）；留空时所有 phase 都跑默认模型 | 与默认模型一致 |
 | `SERPER_API_KEY` | api, worker | 备用搜索引擎 | 不启用 |
 | `JINA_API_KEY` | api, worker | Jina Reader 内容提取 | 免费 tier |
 | `FIRECRAWL_API_KEY` | api, worker | Firecrawl 内容提取 | 不启用 |

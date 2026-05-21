@@ -6,7 +6,19 @@ export { MockProvider } from "./providers/mock.js";
 export type { MockCall } from "./providers/mock.js";
 export { createProvider } from "./factory.js";
 export type { ProviderConfig } from "./factory.js";
-export { ModelRouter, createDefaultRoutingConfig } from "./router.js";
+export {
+  ModelRouter,
+  createDefaultRoutingConfig,
+  createTieredRoutingConfig,
+  getModelMaxOutput,
+  DEFAULT_PHASE_TIERS,
+} from "./router.js";
+export { toJsonSchema } from "./structured/json-schema.js";
+export {
+  isUnsupportedToolUseError,
+  isStrictUnsupported,
+  isJsonSchemaUnsupported,
+} from "./structured/predicates.js";
 export { PHASE0_SYSTEM_PROMPT, phase0OutputSchema } from "./prompts/phase0-validate.js";
 export type { Phase0Output } from "./prompts/phase0-validate.js";
 export { PHASE1_SYSTEM_PROMPT, phase1OutputSchema } from "./prompts/phase1-decompose.js";

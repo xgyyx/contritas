@@ -31,6 +31,12 @@ export interface ChatParams {
   temperature?: number;
   maxTokens?: number;
   systemPrompt?: string;
+  /**
+   * Mark the system prompt as cacheable (Anthropic ephemeral cache). Ignored by
+   * non-Claude providers. Use for actors with large stable system prompts
+   * (e.g. synthesis, cross-validation).
+   */
+  cacheSystem?: boolean;
 }
 
 export interface ChatResponse {
@@ -51,6 +57,7 @@ export interface StructuredParams<T> {
   systemPrompt?: string;
   temperature?: number;
   maxTokens?: number;
+  cacheSystem?: boolean;
 }
 
 export interface TokenUsage {
@@ -58,6 +65,10 @@ export interface TokenUsage {
   outputTokens: number;
   totalTokens: number;
   estimatedCostUSD: number;
+  /** Anthropic prompt cache: tokens served from cache (10% input price). */
+  cacheReadInputTokens?: number;
+  /** Anthropic prompt cache: tokens written to cache (125% input price). */
+  cacheCreationInputTokens?: number;
 }
 
 export interface LLMProvider {
@@ -88,3 +99,17 @@ export interface ModelRoutingConfig {
 }
 
 export type PhaseToRouteKey = Record<PhaseId, keyof ModelRoutingConfig>;
+
+// ── Tiered routing (Sprint C) ───────────────────────────────────────────────
+// Two-tier policy: `default` for reasoning-heavy phases, `cheap` for mechanical
+// extraction. Concrete model ids are bound per-environment via env vars; the
+// tier-to-phase mapping is held constant in DEFAULT_PHASE_TIERS.
+
+export type ModelTier = "default" | "cheap";
+
+export interface TieredRoutingConfig {
+  default: ModelRef;
+  cheap: ModelRef;
+}
+
+export type PhaseToTier = Record<PhaseId, ModelTier>;

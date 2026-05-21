@@ -46,6 +46,15 @@
 
 核心实现见 `packages/search/src/orchestrator.ts`。
 
+### 3.1 LLM 调用使用 cheap-tier 模型（Sprint C / 6.5.2）
+
+`evaluateEvidence` 与 `refineKeywords` 都跑 `SearchDeps.evidenceEvalModel`（由 workflow 端从两档路由的 cheap 槽位注入；未配置 `LLM_MODEL_CHEAP` 时回退到默认模型）。这是 Phase 3 成本控制的主战场——单维度 5 轮 × 多批 evidence eval，全用 Haiku 一类的便宜模型。
+
+### 3.2 失败处理（Sprint C / 6.5.7 / 6.5.8）
+
+- **`evaluateEvidence` split-retry**：batch 整体失败（LLM 报错 / Zod 校验失败）时不再静默丢整批，改为拆半递归（`processBatch`）；只有当 batch 降到 1 条仍失败时，才以 `[evaluateEvidence] dropping single content ...` warn 丢弃单条。1 条毒数据从 5 条 batch 隔离最差需 7 次 LLM call，可接受。
+- **`refineKeywords` give-up**：失败时返回 `{ zh: [], en: [] }`（旧行为是返回 dimension.keywords 原值，被去重后下一轮 0 query 空转）。`searchDimension` round 循环检测到全空时 `break`——维度提前以"证据不足"结束，比浪费一轮 LLM call 更经济。
+
 ---
 
 ## 四、速率控制

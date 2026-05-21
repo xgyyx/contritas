@@ -2,6 +2,7 @@ import { fromPromise } from "xstate";
 import {
   PHASE5_SYSTEM_PROMPT,
   phase5OutputSchema,
+  getModelMaxOutput,
 } from "@contritas/llm";
 import {
   REPORT_CHAR_TARGETS,
@@ -17,11 +18,40 @@ import type {
 } from "../types.js";
 import { runSelfChecks } from "../utils/self-check.js";
 
+// 6.5.6: bound the synthesis prompt by keeping the top-K most useful evidence
+// per dimension in full and summarizing the rest as a citation tail.
+const CRED_WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1 };
+const TOP_K_EVIDENCE = 5;
+
+interface RankedEvidence {
+  item: EvidenceData;
+  score: number;
+}
+
+/**
+ * Rank evidence by credibility × recency. Items without a published date are
+ * treated as ~1 year old (still ranked, just deprioritized). Higher score = kept.
+ */
+function rankEvidence(items: EvidenceData[]): RankedEvidence[] {
+  const now = Date.now();
+  return items
+    .map((item) => {
+      const cred = CRED_WEIGHT[item.credibility] ?? 1;
+      const ageDays = item.publishedDate
+        ? Math.max(1, (now - new Date(item.publishedDate).getTime()) / 86_400_000)
+        : 365;
+      const recency = 1 / Math.log10(ageDays + 10);
+      return { item, score: cred * recency };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
 export const synthesizeReport = fromPromise<
   SynthesisResult,
   { context: ResearchContext; deps: WorkflowDeps }
 >(async ({ input: { context, deps } }) => {
   const { llmProvider, getModelForPhase } = deps;
+  const model = getModelForPhase("synthesis");
 
   const proposition = context.input.validatedProposition ?? context.input.originalText;
   const complexity = context.complexity ?? "medium";
@@ -64,8 +94,13 @@ export const synthesizeReport = fromPromise<
           ? `\nContradiction: ${cv.contradictionDescription} (reason: ${cv.contradictionReason})`
           : "";
 
-      const evidenceStr = evidenceList
-        .map((e, i) => {
+      const ranked = rankEvidence(evidenceList);
+      const top = ranked.slice(0, TOP_K_EVIDENCE);
+      const tail = ranked.slice(TOP_K_EVIDENCE);
+
+      const topBlock = top
+        .map((r, i) => {
+          const e = r.item;
           const header =
             `  [${i + 1}] "${e.sourceName}" (${e.sourceType}, credibility: ${e.credibility}, relationship: ${e.relationship})` +
             (e.publishedDate ? `\n      Date: ${e.publishedDate}` : "") +
@@ -78,12 +113,23 @@ export const synthesizeReport = fromPromise<
         })
         .join("\n");
 
+      const tailBlock =
+        tail.length === 0
+          ? ""
+          : `\n\n  剩余 ${tail.length} 篇证据（仅引用，不展开摘录）:\n` +
+            tail
+              .map(
+                (r, i) =>
+                  `    [${TOP_K_EVIDENCE + i + 1}] ${r.item.sourceName} — ${r.item.url}`
+              )
+              .join("\n");
+
       return (
         `### Dimension: ${dimData.name} (ID: ${dimId})\n` +
         `Core Question: ${dimData.coreQuestion}\n` +
         `Counter Question: ${dimData.counterQuestion}\n` +
         `${verdictStr}${contradictionStr}\n\n` +
-        `Evidence (${evidenceList.length} items):\n${evidenceStr}`
+        `Evidence (${evidenceList.length} items, showing top ${top.length}):\n${topBlock}${tailBlock}`
       );
     })
     .join("\n\n---\n\n");
@@ -114,12 +160,17 @@ ${dimensionsText}
 Generate the full 8-section report following the template exactly.`;
 
   const { data, usage } = await llmProvider.structuredOutput({
-    model: getModelForPhase("synthesis"),
+    model,
     messages: [{ role: "user", content: userMessage }],
     systemPrompt: PHASE5_SYSTEM_PROMPT + EXTERNAL_CONTENT_SAFETY_CLAUSE,
     schema: phase5OutputSchema,
     temperature: 0.1,
-    maxTokens: 16384,
+    // Use the model's actual maxOutput; the previous hard-coded 16384
+    // 400'd on Haiku (8192 cap).
+    maxTokens: getModelMaxOutput(llmProvider, model),
+    // PHASE5_SYSTEM_PROMPT is ~5K chars and identical across self-check
+    // retries and iterate flows — cache it on Anthropic.
+    cacheSystem: true,
   });
 
   // Compute metrics

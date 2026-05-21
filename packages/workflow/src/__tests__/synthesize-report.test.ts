@@ -84,13 +84,16 @@ const MOCK_REPORT_CONTENT = `# 深度研究报告：Test
 | 3 | Academic | https://paper.com/1 | 学术 | 高 | 研究结论 |
 `;
 
-function createMockDeps(responses: unknown[]): WorkflowDeps {
+function createMockDeps(responses: unknown[]): { deps: WorkflowDeps; provider: MockProvider } {
   const provider = new MockProvider({ structuredResponses: responses });
   return {
-    llmProvider: provider,
-    getModelForPhase: () => "mock-model",
-    emitEvent: vi.fn(),
-    persistState: vi.fn().mockResolvedValue(undefined),
+    provider,
+    deps: {
+      llmProvider: provider,
+      getModelForPhase: () => "mock-model",
+      emitEvent: vi.fn(),
+      persistState: vi.fn().mockResolvedValue(undefined),
+    },
   };
 }
 
@@ -189,7 +192,7 @@ function invokeActor(actor: any, input: any) {
 
 describe("Synthesize Report Actor", () => {
   it("generates report and passes self-check with valid output", async () => {
-    const deps = createMockDeps([
+    const { deps } = createMockDeps([
       {
         markdownContent: MOCK_REPORT_CONTENT,
         overallScore: "6.0-6.5",
@@ -212,7 +215,7 @@ describe("Synthesize Report Actor", () => {
   it("fails self-check when report is missing required sections", async () => {
     const incompleteReport = "# Report\n\nJust some text without proper structure.";
 
-    const deps = createMockDeps([
+    const { deps } = createMockDeps([
       {
         markdownContent: incompleteReport,
         overallScore: "5.0-5.5",
@@ -228,7 +231,7 @@ describe("Synthesize Report Actor", () => {
   });
 
   it("computes correct char count and source count", async () => {
-    const deps = createMockDeps([
+    const { deps } = createMockDeps([
       {
         markdownContent: MOCK_REPORT_CONTENT,
         overallScore: "7.0-7.5",
@@ -241,5 +244,55 @@ describe("Synthesize Report Actor", () => {
 
     expect(result.report.charCount).toBe(MOCK_REPORT_CONTENT.length);
     expect(result.report.sourceCount).toBe(context.evidence.length);
+  });
+
+  it("renders top-K evidence in full and summarizes the rest as a tail (6.5.6)", async () => {
+    const { deps, provider } = createMockDeps([
+      {
+        markdownContent: MOCK_REPORT_CONTENT,
+        overallScore: "6.0-6.5",
+        overallVerdict: "proceed_with_caution",
+      },
+    ]);
+
+    const context = createFullContext();
+    // Inflate evidence to 8 items so top-K=5 leaves 3 in the tail.
+    const recent = "2026-01-01";
+    const old = "2010-01-01";
+    const credibilities = ["high", "high", "high", "medium", "medium", "low", "low", "low"] as const;
+    context.evidence = credibilities.map((cred, i) => ({
+      id: `e${i + 1}`,
+      dimensionId: "dim-1",
+      url: `https://source-${i + 1}.example.com/p`,
+      title: `Source ${i + 1}`,
+      sourceName: `Source ${i + 1}`,
+      sourceType: "industry_report",
+      credibility: cred,
+      publishedDate: i < 3 ? recent : old,
+      language: "zh",
+      keyExcerpt: `excerpt ${i + 1}`,
+      relationship: "supports",
+      timelinessRisk: false,
+      searchQuery: "q",
+      searchRound: 1,
+    }));
+
+    await invokeActor(synthesizeReport, { context, deps });
+
+    const lastCall = provider.getCalls().at(-1);
+    expect(lastCall).toBeDefined();
+    const messages = (lastCall as { params: { messages: Array<{ content: string }> } }).params.messages;
+    const userPrompt = messages.map((m) => m.content).join("\n");
+
+    // Top 5 must be rendered with their full Excerpt block.
+    const excerptMatches = userPrompt.match(/Excerpt:/g) ?? [];
+    expect(excerptMatches.length).toBe(5);
+
+    // Tail must summarize the remaining 3 in a single section.
+    expect(userPrompt).toMatch(/剩余 3 篇证据/);
+    // Tail summary should reference the lower-ranked sources by URL only.
+    expect(userPrompt).toMatch(/https:\/\/source-\d+\.example\.com\/p/);
+    // The prompt also explicitly shows the truncation in the dimension header.
+    expect(userPrompt).toMatch(/Evidence \(8 items, showing top 5\)/);
   });
 });

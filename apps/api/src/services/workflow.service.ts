@@ -9,7 +9,7 @@ import {
   DEFAULT_TOKEN_BUDGET_USD,
   wrapExternalContent,
 } from "@contritas/shared";
-import { createProvider, type LLMProvider, ModelRouter, createDefaultRoutingConfig } from "@contritas/llm";
+import { createProvider, type LLMProvider, ModelRouter, createTieredRoutingConfig } from "@contritas/llm";
 import {
   TavilySearchProvider,
   SerperSearchProvider,
@@ -63,7 +63,10 @@ export function createInitialContext(
   };
 }
 
-export function buildSearchDeps(searchConfig: SearchConfig): SearchDeps | undefined {
+export function buildSearchDeps(
+  searchConfig: SearchConfig,
+  evidenceEvalModel?: string,
+): SearchDeps | undefined {
   // Build search provider (require at least one)
   let searchProvider;
   let fallbackSearchProvider;
@@ -108,6 +111,7 @@ export function buildSearchDeps(searchConfig: SearchConfig): SearchDeps | undefi
     searchConcurrencyLimit: SEARCH_CONCURRENT_LIMIT,
     extractConcurrencyLimit: EXTRACT_CONCURRENT_LIMIT,
     maxSearchCallsPerSession: MAX_SEARCH_CALLS_PER_SESSION,
+    evidenceEvalModel,
   };
 }
 
@@ -115,10 +119,11 @@ export function createWorkflowDeps(
   sessionId: string,
   llmProvider: LLMProvider,
   llmModel: string,
+  cheapModel: string,
   searchDeps?: SearchDeps
 ): WorkflowDeps {
   const router = new ModelRouter(
-    createDefaultRoutingConfig(llmProvider.name, llmModel)
+    createTieredRoutingConfig(llmProvider.name, llmModel, cheapModel)
   );
 
   return {
@@ -390,10 +395,11 @@ export async function runWorkflow(
   language: "zh" | "en",
   llmProvider: LLMProvider,
   llmModel: string,
+  cheapModel: string,
   searchDeps?: SearchDeps
 ): Promise<WorkflowRunResult> {
   const context = createInitialContext(sessionId, originalText, language);
-  const workflowDeps = createWorkflowDeps(sessionId, llmProvider, llmModel, searchDeps);
+  const workflowDeps = createWorkflowDeps(sessionId, llmProvider, llmModel, cheapModel, searchDeps);
   const machine = createResearchMachine(workflowDeps);
 
   return new Promise((resolve, reject) => {
@@ -426,10 +432,11 @@ export function createWorkflowController(
   language: "zh" | "en",
   llmProvider: LLMProvider,
   llmModel: string,
+  cheapModel: string,
   searchDeps?: SearchDeps
 ) {
   const context = createInitialContext(sessionId, originalText, language);
-  const workflowDeps = createWorkflowDeps(sessionId, llmProvider, llmModel, searchDeps);
+  const workflowDeps = createWorkflowDeps(sessionId, llmProvider, llmModel, cheapModel, searchDeps);
   const machine = createResearchMachine(workflowDeps);
   const actor = createActor(machine, { input: context });
 
@@ -581,9 +588,10 @@ export function createWorkflowControllerFromContext(
   initialState: string,
   llmProvider: LLMProvider,
   llmModel: string,
+  cheapModel: string,
   searchDeps?: SearchDeps,
 ) {
-  const workflowDeps = createWorkflowDeps(sessionId, llmProvider, llmModel, searchDeps);
+  const workflowDeps = createWorkflowDeps(sessionId, llmProvider, llmModel, cheapModel, searchDeps);
   const machine = createResearchMachine(workflowDeps, initialState);
   const actor = createActor(machine, { input: context });
 
