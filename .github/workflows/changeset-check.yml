@@ -8,6 +8,15 @@ jobs:
   check:
     name: PR has changeset
     runs-on: ubuntu-latest
+    # The Release PR opened by changesets/action consumes all changesets by
+    # design, so it cannot satisfy the "must have a changeset" rule. Skip
+    # the gate for that branch + author combo (defense-in-depth: both must
+    # match before we skip).
+    if: >-
+      !(
+        github.head_ref == 'changeset-release/main'
+        && github.event.pull_request.user.login == 'github-actions[bot]'
+      )
     steps:
       - uses: actions/checkout@v4
         with:

@@ -278,7 +278,7 @@ web:
 | `.changeset/README.md` | changesets 自带的工具说明 |
 | `.changeset/*.md` | 单次变更说明（PR 必带，merge release PR 时被消费删除） |
 | `.github/workflows/ci.yml` | PR 守门 |
-| `.github/workflows/changeset-check.yml` | PR 必须带 changeset |
+| `.github/workflows/changeset-check.yml` | PR 必须带 changeset（自动跳过 release PR：`head_ref == "changeset-release/main"` && bot 开的） |
 | `.github/workflows/changesets-release.yml` | 自动开 release PR |
 | `.github/workflows/release.yml` | tag 触发的真正发版 |
 | `scripts/extract-changelog.mjs` | 从根 CHANGELOG 抽某版本段落作 GitHub Release notes |
