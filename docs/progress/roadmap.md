@@ -115,19 +115,19 @@
 - [x] `refineKeywords` 失败时返回空数组（caller break 当前维度搜索循环，不再空转）
 
 #### 6.6 可观测性
-- [ ] 结构化日志（pino 或同等）替换所有 `console.log/error`，统一字段 + 级别
-- [ ] 请求 ID / Job ID / Session ID 三级 correlation id 贯穿 API → Worker → Workflow
-- [ ] `app.onError` 返回带 error id 的 5xx，配合日志可定位
+- [x] 结构化日志（pino）替换所有 `console.log/error`，统一字段 + 级别（`apps/api/src/lib/logger.ts`）
+- [x] 请求 ID / Job ID / Session ID 三级 correlation id 贯穿 API → Worker → Workflow
+- [x] `app.onError` 返回带 errorId 的 5xx，配合日志可定位（`apps/api/src/index.ts:91`）
 - [ ] Hono 请求日志中间件 + 慢请求阈值告警
 - [ ] 指标采集：job 耗时、token 消耗、搜索调用数、LLM/搜索 retry 率、SSE 重连数、缓存命中率
 - [ ] 错误追踪集成（Sentry 或同类）
 - [ ] Health check 扩展：BullMQ worker 心跳 + DLQ 大小 + 关键外部 API（Anthropic / Tavily）可达性
 
 #### 6.7 测试覆盖
-- [ ] `apps/api` 集成测试：8 个端点 happy path + 错误场景 + SSE 流 + clarification + iterate + cancel
+- [x] `apps/api` 集成测试：8 个端点 happy path + 错误场景 + SSE 流 + clarification + iterate + cancel（`apps/api/src/__tests__/research.routes.test.ts`）
 - [ ] `packages/workflow` 补充 `validate-input` / `decompose` / `plan` / `search-dimensions` actor 单元测试
 - [ ] `apps/web` 关键组件测试：`input-form`、`clarification-dialog`、`iterate-panel`、`sse-client` 重连
-- [ ] 端到端测试（Mock LLM + Mock Search 跑完整 pipeline，校验持久化与事件序列）
+- [x] 端到端测试（Mock LLM + Mock Search 跑完整 pipeline，校验持久化与事件序列）（`packages/workflow/src/__tests__/e2e.test.ts`）
 - [ ] `synthesize-report.test.ts` 解耦 XState 内部 API（不再使用 `actor.config({input})`）
 - [ ] BullMQ retry / lock / clarification 超时的回归测试
 
@@ -154,7 +154,7 @@
 - [ ] `tsconfig.base.json` 开启 `noUncheckedIndexedAccess`
 - [x] 修正 `package.json` 版本与 CHANGELOG 对齐（统一升至 0.6.0，配套 changesets 自动化）
 - [ ] `scripts/dev.sh` 同时启动 API + Worker（当前只启 API）
-- [ ] `.gitignore` 补 `.env.local` `.env.production`；`.dockerignore` 覆盖 `.env.*`
+- [x] `.gitignore` 补 `.env.*`（保留 `.env.example` / `.env.*.example`）；`.dockerignore` 同步覆盖
 - [x] Release Publishing：`.github/workflows/release.yml` 在 `v*.*.*` tag 触发，`docker buildx --push` 多架构镜像（amd64+arm64）到 `ghcr.io/xgyyx/contritas-{api,web}:<version>` 同时 push `latest`；`scripts/extract-changelog.mjs` 抽 CHANGELOG 段落作 Release notes
 - [x] Version 自动化：引入 changesets（`fixed` 共版本，根 CHANGELOG 仍手动维护），PR 必带 changeset，merge 后自动 release PR，merge release PR 推 tag 触发 6.9.8
 

@@ -107,6 +107,51 @@ refactor(workflow): extract retry logic to shared utility
 
 5. 等待 CI 全绿 + Review 通过后合并
 
+### 端到端命令样板
+
+把上面 5 步串成可直接 copy-paste 的命令链（以一个 docs PR 为例，普通 feat/fix 把 `--empty` 换成交互式 `pnpm changeset` 即可）：
+
+```bash
+# 1. 开分支
+git checkout -b docs/some-cleanup
+
+# 2. 改文件 ... 然后本地自检
+pnpm turbo typecheck test
+
+# 3. 加 changeset（纯文档/CI 用 --empty 跳过版本变更）
+pnpm changeset --empty
+
+# 4. 提交 + 推
+git add -A
+git commit -m "docs: short summary
+
+详细说明（可选）。
+"
+git push -u origin docs/some-cleanup
+
+# 5. 开 PR（标题遵循 conventional commits；body 用 heredoc 保证换行）
+gh pr create --title "docs: short summary" --body "$(cat <<'EOF'
+## Summary
+- 做了什么
+- 为什么
+
+## Test plan
+- [ ] CI 全绿
+EOF
+)"
+
+# 6. 等 CI（阻塞看完）
+gh pr checks <pr-number> --watch
+
+# 7. 全绿后 squash merge + 删分支
+gh pr merge <pr-number> --squash --delete-branch
+
+# 8. 本地切回 main 同步
+git checkout main && git pull --ff-only
+```
+
+> **注意**：merge 之后如果带了非空 changeset，几秒内 `changesets-release.yml` 会自动开/更新一个 `chore: release` PR；纯文档/CI 类的空 changeset 则会被静默消费，不会触发任何下游动作。完整的 release PR → tag → GHCR 流程见 [docs/deployment/release.md](docs/deployment/release.md)。
+
 ## Changesets（版本与发布）
 
 > 完整发布流程（PR → release PR → tag → GHCR → GitHub Release）见 [docs/deployment/release.md](docs/deployment/release.md)。本节只列开发者最常用的命令。

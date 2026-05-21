@@ -4,6 +4,9 @@ dist/
 .next/
 out/
 .env
+.env.*
+!.env.example
+!.env.*.example
 *.local
 coverage/
 .DS_Store
