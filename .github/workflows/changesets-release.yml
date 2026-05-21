@@ -65,15 +65,20 @@ jobs:
 
       # Runs only on the post-merge invocation: hasChangesets becomes 'false'
       # once the release PR is merged and .changeset/*.md have been consumed.
-      # Reads the root package.json version (bumped by `changeset version`)
-      # and pushes a single `vX.Y.Z` tag — release.yml picks this up.
+      # Reads apps/api/package.json — `changeset version` bumps the workspace
+      # packages but NOT the root package.json (which is a private monorepo
+      # container, not a workspace member). The `fixed` group in
+      # .changeset/config.json keeps all 6 workspace packages on the same
+      # version, so reading any one of them is fine; apps/api is the natural
+      # source of truth for the release version. Pushes a single `vX.Y.Z`
+      # tag, which release.yml picks up.
       - name: Push unified vX.Y.Z tag
         if: steps.changesets.outputs.hasChangesets == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
         run: |
           set -euo pipefail
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(node -p "require('./apps/api/package.json').version")
           TAG="v$VERSION"
           if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
             echo "Tag $TAG already exists locally, skipping"
