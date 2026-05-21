@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
-  "changelog": false,
+  "changelog": ["@changesets/cli/changelog", null],
   "commit": false,
   "fixed": [["@contritas/shared", "@contritas/llm", "@contritas/search", "@contritas/workflow", "@contritas/api", "@contritas/web"]],
   "linked": [],

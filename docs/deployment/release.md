@@ -107,12 +107,12 @@ merge 普通 PR 后，**几秒内**：
 3. 这个 PR 里：
    - 所有 `package.json` `version` 自动 bump（取所有 changeset 中最高级别）
    - `.changeset/*.md`（除 README/config）被删除
-   - 各 package 的 `CHANGELOG.md` 自动追加新段落
+   - 各 package 的 `CHANGELOG.md` 自动追加英文段落（由 changesets 默认 generator 生成）
 
 ### 你要做的
 
 1. **Review release PR**：检查版本号 bump 是否符合预期（patch / minor / major）。
-2. **同步根 `CHANGELOG.md`**（可选但推荐）：当前根 CHANGELOG 仍按 keepachangelog 中文风格手动维护，把 release PR 里 package CHANGELOG 的英文条目整理一段中文追加到根 CHANGELOG `## [Unreleased]` 下面，commit 进 release PR 分支。
+2. **同步根 `CHANGELOG.md`**：把 release PR 里 package 级 changelog 的英文条目整理一段中文追加到根 `CHANGELOG.md` `## [Unreleased]` 下面（写成「## [0.x.y] - YYYY-MM-DD」段落），commit 进 release PR 分支。`release.yml` 后续会从这段抽取作为 GitHub Release notes。
 3. **Merge release PR**：
 
 ```bash
@@ -274,7 +274,7 @@ web:
 
 | 文件 | 用途 |
 | --- | --- |
-| `.changeset/config.json` | changesets 配置：`fixed` 共版本、`changelog: false` |
+| `.changeset/config.json` | changesets 配置：`fixed` 共版本、默认 changelog generator（生成 per-package CHANGELOG.md） |
 | `.changeset/README.md` | changesets 自带的工具说明 |
 | `.changeset/*.md` | 单次变更说明（PR 必带，merge release PR 时被消费删除） |
 | `.github/workflows/ci.yml` | PR 守门 |
