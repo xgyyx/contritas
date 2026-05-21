@@ -42,11 +42,11 @@ jobs:
           publish: pnpm changeset tag
           title: "chore: release"
           commit: "chore: release"
-          # createGithubReleases is true by default, which tries to read
-          # per-package CHANGELOG.md files — but our `.changeset/config.json`
-          # has `"changelog": false`, so those files don't exist. Disable
-          # here; release.yml (triggered by the tag push) creates the
-          # GitHub Release from the root CHANGELOG.md instead.
+          # The root CHANGELOG.md is hand-maintained in Chinese (keepachangelog
+          # style). Per-package CHANGELOG.md files are auto-generated in
+          # English by changesets — we keep both. release.yml (tag-triggered)
+          # creates the GitHub Release from the root CHANGELOG.md, so disable
+          # action's built-in release creation to avoid duplicate Releases.
           createGithubReleases: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

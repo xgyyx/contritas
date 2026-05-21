@@ -141,7 +141,7 @@ pnpm changeset status
 2. 你 review 这个 release PR（必要时手动整理生成的 changelog 段落同步到根 `CHANGELOG.md`），merge 之。
 3. merge 后 `changesets/action` 会推 `v0.x.y` git tag → 触发 `release.yml` → 多架构构建并 push 镜像到 GHCR + 自动生成 GitHub Release notes。
 
-> 当前 changesets 配置 `"changelog": false`——package 级 changelog 由工具生成，根 `CHANGELOG.md` 仍按 keepachangelog 中文风格手动维护，避免风格冲突。
+> changesets 自动给每个 package 生成英文 `CHANGELOG.md`（commit 进仓库）。根 `CHANGELOG.md` 是另一份——keepachangelog 中文风格、手动维护，写给用户看「这一版做了什么」。两份并存，互不替代。
 
 ## CI 自动检查
 
