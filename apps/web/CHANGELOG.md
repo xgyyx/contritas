@@ -1,5 +1,11 @@
 # @contritas/web
 
+## 0.7.1
+
+### Patch Changes
+
+- @contritas/shared@0.7.1
+
 ## 0.7.0
 
 ### Minor Changes

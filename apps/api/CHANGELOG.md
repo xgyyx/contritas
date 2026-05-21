@@ -1,5 +1,34 @@
 # @contritas/api
 
+## 0.7.1
+
+### Patch Changes
+
+- d9cbfa9: Fix release pipeline so merging a release PR actually publishes images to GHCR.
+
+  The previous setup never produced a git tag — `pnpm changeset tag` is a
+  no-op when all packages are private with `privatePackages.tag: false`,
+  and the default `GITHUB_TOKEN` cannot trigger downstream workflows
+  even when tags are pushed. As a result, v0.6.0's release PR merged
+  silently and `release.yml` never ran.
+
+  `changesets-release.yml` now uses a fine-grained PAT (`RELEASE_PAT`,
+  Contents+PRs RW on this repo) and pushes a single repo-wide `vX.Y.Z`
+  tag derived from the root `package.json` version on the post-merge
+  run. This first proper release exercises that path end-to-end.
+
+- dea95c0: `changesets-release.yml`: read the release version from
+  `apps/api/package.json` instead of the root `package.json`. `changeset
+version` bumps workspace packages but does not touch the root, so the
+  old code would have pushed a stale tag (e.g. `v0.6.0` after a 0.7.x
+  bump). The `fixed` group keeps the six workspace packages on the same
+  version, so reading any one of them is correct; `apps/api` is the
+  natural source of truth.
+  - @contritas/shared@0.7.1
+  - @contritas/llm@0.7.1
+  - @contritas/search@0.7.1
+  - @contritas/workflow@0.7.1
+
 ## 0.7.0
 
 ### Minor Changes
