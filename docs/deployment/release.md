@@ -167,10 +167,24 @@ gh run watch                       # 选最新的 run 阻塞看
 | --- | --- | --- | --- |
 | Settings → Secrets and variables → Actions → **Variables** | `RELEASE_NEXT_PUBLIC_API_URL` | 构建 web 镜像时烤进 JS bundle 的 API URL | `https://api.contritas.local`（占位也行，部署时重 build） |
 | Settings → Secrets and variables → Actions → **Secrets** | `RELEASE_NEXT_PUBLIC_API_TOKEN` | web 镜像内置的 token；部署 api 时 `API_AUTH_TOKEN` 必须包含此值 | `openssl rand -hex 32` |
+| Settings → Secrets and variables → Actions → **Secrets** | `RELEASE_PAT` | `changesets-release.yml` 用它推 release PR / 合并后推 `v*.*.*` tag。**必须 classic PAT**（见下文「为什么是 classic PAT」） | `ghp_xxx`（scopes：`repo` + `workflow`） |
 | Settings → Actions → General → **Workflow permissions** | — | 让 workflow 能创建 release / 推 commit | ☑️ Read and write |
 | Settings → Actions → General → **Allow GitHub Actions to create and approve pull requests** | — | 让 `changesets-release.yml` 能开 release PR | ☑️ 勾上 |
 
 **注意**：`Variables` 和 `Secrets` 都选 **Repository** 级别（不是 Environment）。当前 workflow 没声明 `environment:` 字段，读不到 Environment 级别的。
+
+### 为什么是 classic PAT 而不是 fine-grained / 默认 GITHUB_TOKEN
+
+整条流水线的关键是「`changesets-release.yml` push 一个 `v*.*.*` tag → `release.yml` 被触发」。这个 fan-out 对 token 类型敏感，踩过两次坑：
+
+1. **不能用默认 `GITHUB_TOKEN`**：GitHub 的反递归保护规定，用 `GITHUB_TOKEN` 推送的 commit/tag **不会触发其他 workflow**（防止无限循环）。后果：tag 是推上去了，`release.yml` 永远静默，GHCR 一直空着——0.7.0 之前的所有"发版"都是这个状态。
+2. **fine-grained PAT 也不行**：实测把 `RELEASE_PAT` 配成 fine-grained PAT（即便给了 Contents + Pull requests RW 权限），推 tag 仍然不触发 `release.yml`。
+3. **classic PAT (`repo` + `workflow`) 才有效**：v0.7.1 第一次端到端跑通就是切到 classic PAT 之后。
+
+操作要点：
+- 创建：https://github.com/settings/tokens/new（必须 classic，不要点到 fine-grained 那个入口）
+- Scopes：勾 `repo`（整块）+ `workflow`，其他不需要
+- Expiration：1 年；到期前若 `changesets-release.yml` 开始报 401/403，去 https://github.com/settings/tokens 重新生成同 scopes 的 token，更新 `RELEASE_PAT` secret 即可（workflow 文件不用动）
 
 ---
 

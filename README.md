@@ -239,6 +239,7 @@ Phase 5  报告综合   →  评分 + 行动建议 + 自检（不通过回退 Ph
 - 💾 [数据模型](./docs/architecture/data-model.md) — PostgreSQL Schema、实体关系
 - 📡 [实时与基础设施](./docs/architecture/realtime-and-infra.md) — SSE、存储、部署
 - 🐳 [Docker 部署](./docs/deployment/docker.md) — 容器化构建与运维
+- 🚀 [发布流程](./docs/deployment/release.md) — CI/CD + changesets + GHCR 多架构镜像
 - 🔒 [安全策略](./docs/security.md) — 鉴权 / CORS / 限流 / SSRF / Prompt Injection
 - 🔗 [PRD 映射表](./docs/prd-mapping.md) — PRD 需求 → 技术实现追踪
 

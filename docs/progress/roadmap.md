@@ -159,12 +159,13 @@
 - [x] Version 自动化：引入 changesets（`fixed` 共版本，根 CHANGELOG 仍手动维护），PR 必带 changeset，merge 后自动 release PR，merge release PR 推 tag 触发 6.9.8
 
 #### 6.10 文档与一致性
-- [ ] `CLAUDE.md` 进度区块与本 roadmap 对齐（6.5 改为部分完成）
-- [ ] `docs/deployment/docker.md` 标注非 root / 健康检查 / migration 等加固步骤
-- [ ] `apps/api/README.md` 与 `apps/web/README.md` 同步生产部署要求
-- [ ] 新增 `docs/security.md`：鉴权模型、CORS、限流、SSRF/prompt-injection 策略
-- [ ] `docs/architecture/data-model.md` 补充新增唯一约束与索引说明
-- [ ] 删除审视后已证伪/不准确的说明（如 6.5「优雅关闭增强」原状）
+- [x] `CLAUDE.md` 进度区块与本 roadmap 对齐（已在 0.7.1 后逐项 ✅/[ ] 同步）
+- [x] `docs/deployment/docker.md` 标注非 root / 健康检查 / migration 等加固步骤
+- [ ] `apps/api/README.md` 与 `apps/web/README.md` 同步生产部署要求（api 仅写了 migration，缺 `API_AUTH_TOKEN` / `WEB_ORIGIN` / 非 root；web 完全未提）
+- [x] 新增 `docs/security.md`：鉴权模型、CORS、限流、SSRF/prompt-injection 策略
+- [x] `docs/architecture/data-model.md` 补充新增唯一约束与索引说明（`uq_assumptions_session_order` / `uq_dimensions_session_name` / `idx_cross_validations_*`）
+- [x] 删除审视后已证伪/不准确的说明
+- [x] 新增 `docs/deployment/release.md`：CI/CD 全流程 + 「为什么是 classic PAT」诊断（0.7.1 fix 沉淀）
 
 ---
 
