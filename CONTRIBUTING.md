@@ -109,6 +109,8 @@ refactor(workflow): extract retry logic to shared utility
 
 ## Changesets（版本与发布）
 
+> 完整发布流程（PR → release PR → tag → GHCR → GitHub Release）见 [docs/deployment/release.md](docs/deployment/release.md)。本节只列开发者最常用的命令。
+
 我们用 [changesets](https://github.com/changesets/changesets) 管理版本号。所有 workspace package（`@contritas/*`）通过 `fixed` 配置共版本，根 `package.json` 单独记 `0.6.0`。
 
 ### 何时加 changeset
