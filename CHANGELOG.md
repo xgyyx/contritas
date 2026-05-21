@@ -13,6 +13,19 @@
 
 ---
 
+## [0.7.1] - 2026-05-21
+
+> 修复发布流水线：让 release PR 合并后真正能把镜像推到 GHCR。0.7.0 之前 release PR 合进去之后没有任何 git tag 被推送，`release.yml` 从未触发，GHCR 一直是空的。0.7.1 是这条链路第一次端到端跑通。
+
+### Fixed — 发布流水线（PR #6 / #7 / #9）
+
+- **Tag 触发链路**：`changesets-release.yml` 从默认 `GITHUB_TOKEN` 切到 fine-grained PAT（`secrets.RELEASE_PAT`，仅 `xgyyx/contritas` 仓库的 Contents + Pull requests 写权限）。`GITHUB_TOKEN` 因 GitHub 防递归设计无法触发其他 workflow——即便能推 tag，`release.yml` 也不会被触发。
+- **Tag 生成策略**：移除 `publish: pnpm changeset tag`。所有 6 个 workspace 包都是 `private: true`，配上 `.changeset/config.json` 里 `privatePackages.tag: false`，原命令实际是 no-op；即便打开 `tag: true`，输出格式 `@contritas/api@x.y.z` 也匹配不上 `release.yml` 的 `v*.*.*` 触发器。改为新增一个 step：在 release PR 合并后的那次 run（`hasChangesets == 'false'`）里读取版本号并推送统一的 `vX.Y.Z` tag。
+- **版本号读取来源**：tag step 从 `apps/api/package.json` 读版本，而不是 root `package.json`。`pnpm changeset version` 只 bump workspace 包，root 是 monorepo 容器（不属于 workspace），不会被 bump。`fixed` 配置保证 6 个 workspace 包同步，读其中任何一个都正确，`apps/api` 是天然的发布版本来源。
+- **诊断教训**：v0.6.0 release PR 合并时这两个问题叠加且都是静默失败——changesets/action 跑成功（exit 0）、看不到 tag、`release.yml` 自然也没出现在 Actions 列表里。仅看 workflow 状态为绿不等于发版成功；从今以后 release PR 合并后必须确认 `git ls-remote --tags origin` 看到对应 tag。
+
+---
+
 ## [0.7.0] - 2026-05-21
 
 > Phase 6 「CD 前置批」六项工单 + 发布流程跑通。完成后任何部署目标（VPS / PaaS / 云容器 / K8s）都能直接对接 GHCR 镜像。详见 `docs/deployment/release.md` 与 `docs/progress/phase6-progress.md`。
