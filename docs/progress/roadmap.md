@@ -152,9 +152,11 @@
 - [ ] 引入 pre-commit hook（husky + lint-staged + prettier --write）
 - [ ] 全仓 ESLint config + 各 package 补 `lint` 脚本（让 `pnpm lint` 真的有用）
 - [ ] `tsconfig.base.json` 开启 `noUncheckedIndexedAccess`
-- [ ] 修正 `package.json` 版本与 CHANGELOG 对齐（当前 0.1.0 vs CHANGELOG 0.5.0）
+- [ ] 修正 `package.json` 版本与 CHANGELOG 对齐（当前 0.1.0 vs CHANGELOG 0.6.0）
 - [ ] `scripts/dev.sh` 同时启动 API + Worker（当前只启 API）
 - [ ] `.gitignore` 补 `.env.local` `.env.production`；`.dockerignore` 覆盖 `.env.*`
+- [ ] Release Publishing：tag 触发 workflow → `docker buildx --push` 到 GHCR（`ghcr.io/<owner>/contritas-api:$TAG` / `-web:$TAG`，同时 push `latest`）+ 自动从 CHANGELOG 抽取版本段落生成 GitHub Release notes
+- [ ] Version 自动化：引入 changesets 或 release-please，PR 合并触发版本 bump + CHANGELOG 更新 + tag 推送（顺便修 `package.json` vs CHANGELOG 漂移）
 
 #### 6.10 文档与一致性
 - [ ] `CLAUDE.md` 进度区块与本 roadmap 对齐（6.5 改为部分完成）
