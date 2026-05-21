@@ -39,10 +39,14 @@ jobs:
       # at which point the next step pushes a unified vX.Y.Z tag to trigger
       # release.yml.
       #
-      # Uses RELEASE_PAT (fine-grained PAT, Contents+PRs RW on this repo) so
-      # that pushed commits/tags can trigger downstream workflows — the
-      # default GITHUB_TOKEN is blocked from triggering other workflows by
-      # design.
+      # Uses RELEASE_PAT (classic PAT, scopes: repo + workflow) so that
+      # pushed commits/tags can trigger downstream workflows — the default
+      # GITHUB_TOKEN is blocked from triggering other workflows by design,
+      # so a tag pushed with it would NOT fire release.yml. We previously
+      # tried a fine-grained PAT and observed the same non-triggering
+      # behavior; classic PAT with repo + workflow is the combination that
+      # actually fans out to release.yml. See docs/deployment/release.md
+      # §六 for the rationale.
       - uses: changesets/action@v1
         id: changesets
         with:

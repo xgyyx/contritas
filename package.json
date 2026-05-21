@@ -1,6 +1,6 @@
 {
   "name": "contritas",
-  "version": "0.6.0",
+  "version": "0.7.1",
   "description": "Grind assumptions. Surface truth. — 通过反证逼近真相的通用深度研究 Agent",
   "private": true,
   "repository": {
