@@ -225,6 +225,10 @@ Phase 5  报告综合   →  评分 + 行动建议 + 自检（不通过回退 Ph
 - 📖 [《我做了一个会跟你唱反调的 AI 尽调 Agent》](./docs/blog/01-architecture-and-stack.md) — 架构与选型背后的思考
 - 🪞 [《怎么让 LLM 跟你唱反调》](./docs/blog/02-anti-flattery-prompt-design.md) — 反讨好式 Prompt 工程
 - 🔍 [《Phase 4 交叉验证：让 LLM 找证据矛盾》](./docs/blog/03-phase4-cross-validation.md) — 把"看看证据"变成结构化工程问题
+- 🆚 [《如果你能用 Claude Code，为什么还要 Contritas？》](./docs/blog/04-vs-general-agent.md) — 诚实对比通用 Agent，讲清差距和护城河
+- 🪜 [《搜索降级链与"接受部分缺失"的工程纪律》](./docs/blog/05-search-fallback-and-evidence-discipline.md) — 两层降级 + 缓存边界，"证据不足"作为合法尽调结果
+- 🛂 [《报告自检（Phase 5 self-check）—— 让 LLM 给自己挑刺》](./docs/blog/06-phase5-self-check.md) — 四道纯代码硬约束 + 失败回退状态机，能用规则查的不让 LLM 评
+- 🎭 [《为什么 Contritas 不做"实时浏览/深思考演示"？》](./docs/blog/07-no-thinking-stream.md) — 反 Devin/Manus 演示流：审计口径 vs 表演口径的产品哲学
 - 📚 [博客全集与待写选题](./docs/blog/) — 完整文章索引与 backlog
 - 📋 [PRD](./docs/prd/prd.md) — 定位、用户故事、功能列表、非功能需求
 - 📄 [报告模板](./docs/prd/report-template.md) — 输出报告的标准格式
