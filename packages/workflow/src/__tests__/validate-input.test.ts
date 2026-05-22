@@ -68,6 +68,10 @@ describe("Validate Input Actor", () => {
     expect(result.valid).toBe(true);
     expect(result.output.validatedProposition).toBe("Rust 比 Go 更适合高并发 Web 服务");
     expect(result.output.detectedLanguage).toBe("zh");
+    // 6.2.9 (R2): the actor must surface LLM usage so the workflow can
+    // include Phase 0 cost in its budget guard.
+    expect(result.usage).toBeDefined();
+    expect(result.usage.totalTokens).toBeGreaterThanOrEqual(0);
   });
 
   it("returns valid=false with clarification questions for vague input", async () => {

@@ -32,7 +32,7 @@ export const validateInput = fromPromise<
   }
   const userMessage = parts.join("\n");
 
-  const { data: output } = await llmProvider.structuredOutput({
+  const { data: output, usage } = await llmProvider.structuredOutput({
     model: getModelForPhase("inputValidation"),
     messages: [{ role: "user", content: userMessage }],
     systemPrompt: PHASE0_SYSTEM_PROMPT + EXTERNAL_CONTENT_SAFETY_CLAUSE,
@@ -43,5 +43,6 @@ export const validateInput = fromPromise<
   return {
     valid: output.valid,
     output,
+    usage,
   };
 });

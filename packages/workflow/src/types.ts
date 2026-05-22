@@ -147,6 +147,7 @@ export type WorkflowEmittedEvent =
 export interface ValidateInputResult {
   valid: boolean;
   output: Phase0Output;
+  usage: TokenUsage;
 }
 
 // Decompose / plan / cross-validate actors return entities without an id; the state machine
@@ -174,6 +175,7 @@ export interface RetrievalResult {
     sufficient: boolean;
     roundsUsed: number;
   }>;
+  usage: TokenUsage;
 }
 
 // ══════════════════════════════════════════
