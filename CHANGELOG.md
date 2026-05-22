@@ -4,11 +4,16 @@
 
 ## [Unreleased]
 
+### Added — DX 收尾批（6.9.3 / 6.9.6 / 6.9.7）
+- **ESLint flat config**（6.9.3）：根 `eslint.config.mjs` 接 `typescript-eslint`，覆盖 `apps/api` + `packages/*`；`apps/web` 走 `next lint`（ESLint 8 + `eslint-config-next`，避免 ESLint 9 与 next 14 的 peer 不兼容）。各 package 加 `lint` script，`turbo lint` 全仓扫描，CI 新增 lint 步骤。
+- **dev.sh 一键起三进程**（6.9.6）：`scripts/dev.sh` 改为并行拉 api + worker + web；`trap` 转发 SIGINT/SIGTERM 到所有子进程，任一退出整体收摊。
+- **.gitignore / .dockerignore 复核**（6.9.7）：确认 `.env*` 排除与 `.env.example` 例外已就位，本次入勾选。
+
 ### Planned — Phase 6 剩余批
 - DLQ 监控（6.3.6）
 - 请求日志中间件 / `/metrics` Prometheus 端点 / Sentry / health check 扩展（6.6.4-6.6.7）
 - workflow actor 单测 / web 组件测试 / BullMQ 行为回归（6.7.2 / 6.7.3 / 6.7.6）
-- pre-commit / ESLint flat config / `noUncheckedIndexedAccess` / dev.sh worker 拉起（6.9.2-6.9.4 / 6.9.6 / 6.9.7）
+- pre-commit / `noUncheckedIndexedAccess`（6.9.2 / 6.9.4）
 - 文档收尾：CLAUDE.md 进度同步、各 README 生产部署、data-model 索引更新（6.10.x）
 
 ---

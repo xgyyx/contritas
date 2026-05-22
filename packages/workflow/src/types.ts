@@ -17,7 +17,6 @@ import type {
   ContentExtractor,
   SearchCache,
   ContentCache,
-  SearchEventCallback,
 } from "@contritas/search";
 
 // ══════════════════════════════════════════
