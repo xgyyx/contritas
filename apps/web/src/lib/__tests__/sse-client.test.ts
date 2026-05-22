@@ -31,10 +31,10 @@ class FakeEventSource {
   emitError() {
     this.onerror?.call(this as unknown as EventSource, new Event("error"));
   }
-  emitMessage(data: string) {
+  emitMessage(data: string, lastEventId = "") {
     this.onmessage?.call(
       this as unknown as EventSource,
-      { data } as MessageEvent
+      { data, lastEventId } as MessageEvent
     );
   }
 }
@@ -135,6 +135,72 @@ describe("createSSEClient (6.7.3 reconnect backoff)", () => {
     client.disconnect();
     await vi.advanceTimersByTimeAsync(60_000);
     expect(FakeEventSource.instances).toHaveLength(1);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // 6.4.8 (R2): server supports `?lastEventId=` incremental replay, but
+  // native EventSource only auto-sends the Last-Event-ID *header* on its
+  // own reconnect; when we close + reopen on error the next connection
+  // forgets it. Track lastEventId manually and pin it on the URL.
+  // ──────────────────────────────────────────────────────────────────────
+
+  it("forwards the latest lastEventId to the reconnect URL (6.4.8 R2)", async () => {
+    const client = createSSEClient("s", {
+      onEvent: vi.fn(),
+      onOpen: vi.fn(),
+      onError: vi.fn(),
+    });
+    client.connect();
+
+    const first = FakeEventSource.instances[0];
+    expect(first.url).toBe("http://api.test/api/research/s/stream?token=tkn");
+
+    // Server pushes 3 events with monotonically growing ids; the last one
+    // is what we want pinned on the next reconnect URL.
+    first.emitMessage(JSON.stringify({ type: "phase_change" }), "1700000000000-0");
+    first.emitMessage(JSON.stringify({ type: "phase_change" }), "1700000000001-0");
+    first.emitMessage(JSON.stringify({ type: "phase_change" }), "1700000000002-0");
+
+    first.emitError();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const second = FakeEventSource.instances[1];
+    // Both token and lastEventId are present; URLSearchParams encodes the
+    // hyphen literally so we can string-match.
+    expect(second.url).toContain("token=tkn");
+    expect(second.url).toContain("lastEventId=1700000000002-0");
+  });
+
+  it("captures lastEventId even on heartbeats with empty data (6.4.8 R2)", async () => {
+    const onEvent = vi.fn();
+    const client = createSSEClient("s", {
+      onEvent,
+      onOpen: vi.fn(),
+      onError: vi.fn(),
+    });
+    client.connect();
+
+    const first = FakeEventSource.instances[0];
+    // Heartbeat: id present, data empty — onEvent must NOT fire, but
+    // lastEventId should still advance so we don't replay the heartbeat
+    // window again on reconnect.
+    first.emitMessage("", "1700000000050-0");
+    expect(onEvent).not.toHaveBeenCalled();
+
+    first.emitError();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(FakeEventSource.instances[1].url).toContain("lastEventId=1700000000050-0");
+  });
+
+  it("does not include lastEventId on the very first connect (6.4.8 R2)", () => {
+    const client = createSSEClient("s", {
+      onEvent: vi.fn(),
+      onOpen: vi.fn(),
+      onError: vi.fn(),
+    });
+    client.connect();
+
+    expect(FakeEventSource.instances[0].url).not.toContain("lastEventId=");
   });
 
   it("a successful onopen resets the reconnect attempts so next failure goes back to 1s", async () => {

@@ -20,12 +20,24 @@ export function createSSEClient(sessionId: string, options: SSEClientOptions): S
   let reconnectAttempts = 0;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let intentionalClose = false;
+  // 6.4.8 (R2): the API supports incremental replay via `?lastEventId=` (and
+  // `Last-Event-ID` header), but native EventSource only auto-sends the
+  // header when reconnecting *itself* — once we close + reopen on error,
+  // the new connection forgets it. Track the latest id manually and pin it
+  // on the URL so the server xrange's from there instead of "-".
+  let lastEventId: string | null = null;
+
+  function buildUrl(): string {
+    const params = new URLSearchParams();
+    if (API_TOKEN) params.set("token", API_TOKEN);
+    if (lastEventId) params.set("lastEventId", lastEventId);
+    const qs = params.toString();
+    return `${API_URL}/api/research/${sessionId}/stream${qs ? `?${qs}` : ""}`;
+  }
 
   function connect() {
     intentionalClose = false;
-    const tokenQS = API_TOKEN ? `?token=${encodeURIComponent(API_TOKEN)}` : "";
-    const url = `${API_URL}/api/research/${sessionId}/stream${tokenQS}`;
-    eventSource = new EventSource(url);
+    eventSource = new EventSource(buildUrl());
 
     eventSource.onopen = () => {
       reconnectAttempts = 0;
@@ -33,6 +45,9 @@ export function createSSEClient(sessionId: string, options: SSEClientOptions): S
     };
 
     eventSource.onmessage = (msgEvent) => {
+      // Capture id even when data is empty (heartbeats, retry directives) —
+      // skipping it would let lastEventId stagnate behind the live stream.
+      if (msgEvent.lastEventId) lastEventId = msgEvent.lastEventId;
       if (!msgEvent.data) return;
       try {
         const event: ProgressEvent = JSON.parse(msgEvent.data);
