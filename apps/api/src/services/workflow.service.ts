@@ -9,7 +9,7 @@ import {
   DEFAULT_TOKEN_BUDGET_USD,
   wrapExternalContent,
 } from "@contritas/shared";
-import { createProvider, type LLMProvider, ModelRouter, createTieredRoutingConfig } from "@contritas/llm";
+import { type LLMProvider, ModelRouter, createTieredRoutingConfig } from "@contritas/llm";
 import {
   TavilySearchProvider,
   SerperSearchProvider,
