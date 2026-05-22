@@ -114,13 +114,13 @@ Schema 定义：`apps/api/src/drizzle/schema.ts`（Drizzle 格式，以代码为
 - Phase 4 前端 ✅（Next.js + SSE 实时 + 报告查看 + 历史 + 迭代交互）
 - Phase 5 优化与扩展 ✅（ModelRouter 路由 + Token 预算 + 搜索缓存优化 + ETA 事件 + 迭代修复）
 - Phase 6 加固与生产就绪 🚧（11 个子领域，**R2 审视 2026-05-22 新增 19 项工单 + 1 项重开**）：
-  - 6.1 安全鉴权（核心 7 项 ✅；**R2** 6.1.8 cross-validate 漏 prompt-injection 防御 / 6.1.9 TRUST_PROXY_HOPS 待办）
+  - 6.1 安全鉴权（核心 7 项 ✅；**R2 6.1.8 ✅** cross-validate prompt-injection 围栏；**R2** 6.1.9 TRUST_PROXY_HOPS 待办）
   - 6.2 数据一致性（核心 8 项 ✅；**R2 高优批 1 ✅** 6.2.9 预算盲点 + 6.2.10 超预算落盘；**R2** 6.2.11 publishedDate NaN / 6.2.12 persistState 串行 / 6.2.13 getSessionWithCounts 串行 待办）
   - 6.3 Worker 稳定性（核心 clarification 三项 ✅；**6.3.5 loadConfig 单例 R2 重开**（auth.ts 模块级副作用 + 三处重复调）/ 6.3.6 DLQ 监控 / **R2 6.3.7** cancel 不通知 worker 待办）
   - 6.4 SSE 可靠性（核心 7 项 ✅；**R2** 6.4.8 客户端不带 lastEventId / 6.4.9 关闭忙等 待办）
   - 6.5 LLM 可靠性与成本（核心 7 项 ✅；6.5.3 流式输出弃；**R2** 6.5.10 dedup 双跑 待办）
   - 6.6 可观测性（pino + 三级 correlation id + errorId ✅；请求日志 / metrics / Sentry / health 扩展 / **R2 6.6.8** orchestrator 漏 pino 待办）
-  - 6.7 测试覆盖（API 集成 + e2e + 4 个 workflow actor 单测 + BullMQ clarification 回归 + apps/web 4 组件 RTL，共 169 测试 ✅；**R2** 6.7.7 覆盖盲点 / 6.7.8 invokeActor helper 抽离 待办）
+  - 6.7 测试覆盖（API 集成 + e2e + 4 个 workflow actor 单测 + BullMQ clarification 回归 + apps/web 4 组件 RTL，共 180 测试 ✅；**R2** 6.7.7 覆盖盲点 / 6.7.8 invokeActor helper 抽离 待办）
   - 6.8 容器化加固 ✅（HEALTHCHECK + auto-migration 已在 0.7.0 完成）
   - 6.9 DX 工程化（CI + changesets + GHCR release + ESLint flat config + dev.sh 并行 + ignore ✅；pre-commit / noUncheckedIndexedAccess 待办）
   - 6.10 文档同步（security.md / docker.md 加固 / data-model 索引说明 ✅；CLAUDE.md 与各 README 持续同步；**R2 6.10.7** web-archive jinaApiKey 注释 待办）

@@ -13,7 +13,7 @@
 | Phase 3 | 分析与报告     | ✅ 已完成 | [phase3-progress.md](./phase3-progress.md) |
 | Phase 4 | 前端           | ✅ 已完成 | [phase4-progress.md](./phase4-progress.md) |
 | Phase 5 | 优化与扩展     | ✅ 已完成 | [phase5-progress.md](./phase5-progress.md) |
-| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — Sprint A/B/C ✅；CD 前置批 ✅；DX / 测试覆盖批 ✅；**R2 高优批 1 ✅（2026-05-22，6.2.9 + 6.2.10 预算+落盘）**；R2 剩余：6.1.8/9 · 6.2.11–13 · 6.3.5 重开 · 6.3.7 · 6.4.8/9 · 6.5.10 · 6.6.8 · 6.7.7/8 · 6.10.7 · 6.11.1–4；6.6/6.7/6.9/6.10 收尾批 |
+| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — Sprint A/B/C ✅；CD 前置批 ✅；DX / 测试覆盖批 ✅；**R2 高优批 1 ✅（2026-05-22，6.2.9 + 6.2.10 预算+落盘）**；**R2 高优批 2 ✅（2026-05-22，6.1.8 cross-validate prompt-injection 围栏）**；R2 剩余：6.1.9 · 6.2.11–13 · 6.3.5 重开 · 6.3.7 · 6.4.8/9 · 6.5.10 · 6.6.8 · 6.7.7/8 · 6.10.7 · 6.11.1–4；6.6/6.7/6.9/6.10 收尾批 |
 
 ---
 
@@ -74,7 +74,7 @@
 - [x] SSRF 防护：assertSafePublicUrl 覆盖 Jina/Firecrawl/Wayback
 - [x] Prompt injection 缓解：`wrapExternalContent` + system prompt 安全条款
 - [x] `ANTHROPIC_BASE_URL` 非官方域名时启动 warn 日志
-- [ ] **R2 6.1.8** cross-validate actor 缺 `wrapExternalContent` + safety clause，存在 prompt-injection 漏洞
+- [x] **R2 6.1.8** cross-validate actor 缺 `wrapExternalContent` + safety clause，存在 prompt-injection 漏洞
 - [ ] **R2 6.1.9** `clientIp` 应改为按 `TRUST_PROXY_HOPS` 倒数取，避免云 LB 多跳场景旁路限流
 
 #### 6.2 数据一致性与持久化正确性（R2 后：未完）
