@@ -13,7 +13,7 @@
 | Phase 3 | 分析与报告     | ✅ 已完成 | [phase3-progress.md](./phase3-progress.md) |
 | Phase 4 | 前端           | ✅ 已完成 | [phase4-progress.md](./phase4-progress.md) |
 | Phase 5 | 优化与扩展     | ✅ 已完成 | [phase5-progress.md](./phase5-progress.md) |
-| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — Sprint A/B/C ✅；CD 前置批 ✅；DX / 测试覆盖批 ✅；**R2 高优批 1 ✅（2026-05-22，6.2.9 + 6.2.10 预算+落盘）**；**R2 高优批 2 ✅（2026-05-22，6.1.8 cross-validate prompt-injection 围栏）**；R2 剩余：6.1.9 · 6.2.11–13 · 6.3.5 重开 · 6.3.7 · 6.4.8/9 · 6.5.10 · 6.6.8 · 6.7.7/8 · 6.10.7 · 6.11.1–4；6.6/6.7/6.9/6.10 收尾批 |
+| Phase 6 | 加固与生产就绪 | 🚧 进行中 | [phase6-progress.md](./phase6-progress.md) — Sprint A/B/C ✅；CD 前置批 ✅；DX / 测试覆盖批 ✅；**R2 高优批 1 ✅（2026-05-22，6.2.9 + 6.2.10 预算+落盘）**；**R2 高优批 2 ✅（2026-05-22，6.1.8 cross-validate prompt-injection 围栏）**；**R2 高优批 3 ✅（2026-05-22，6.4.8 前端 lastEventId 断点续传）**；R2 剩余：6.1.9 · 6.2.11–13 · 6.3.5 重开 · 6.3.7 · 6.4.9 · 6.5.10 · 6.6.8 · 6.7.7/8 · 6.10.7 · 6.11.1–4；6.6/6.7/6.9/6.10 收尾批 |
 
 ---
 
@@ -110,7 +110,7 @@
 - [x] `subscriber.disconnect()` 改为 `quit()` 优雅关闭
 - [x] `getEventHistory` 支持 `Last-Event-ID` / `?lastEventId=` 增量回放
 - [x] 心跳事件改为 SSE 注释行格式（`event: heartbeat` + 空 data，浏览器 EventSource 不触发 onmessage）
-- [ ] **R2 6.4.8** 客户端 `sse-client.ts` 未保存 `lastEventId` 也不在重连 URL 上传递，服务端断点续传完全没生效
+- [x] **R2 6.4.8** 客户端 `sse-client.ts` 未保存 `lastEventId` 也不在重连 URL 上传递，服务端断点续传完全没生效
 - [ ] **R2 6.4.9** SSE 流关闭用 `setInterval(1s)` 忙等，平均 500ms 延迟；改 `AbortController + addEventListener`
 
 #### 6.5 LLM 可靠性与成本 ✅
