@@ -1,4 +1,4 @@
-import type { SourceType, Credibility, Relationship, Language } from "@contritas/shared";
+import type { SourceType, Credibility, Relationship, Language, TokenUsage } from "@contritas/shared";
 
 // ══════════════════════════════════════════
 // Search Provider
@@ -87,6 +87,13 @@ export interface DimensionSearchResult {
   roundsUsed: number;
   searchCallsUsed: number;
   sufficient: boolean;
+  /**
+   * Aggregate LLM token usage spent inside this dimension's search loop —
+   * sum of every evaluateEvidence + refineKeywords call across all rounds and
+   * batch retries. Phase 6.2.9 (R2): without this, the workflow's token
+   * budget guard was blind to Phase 3's main cost driver.
+   */
+  usage: TokenUsage;
 }
 
 export interface EvidenceCandidate {

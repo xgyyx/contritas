@@ -303,4 +303,97 @@ describe("Research Machine", () => {
 
     expect(result).toBe("budgetExceeded");
   });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 6.2.9 + 6.2.10 (R2): Phase 0 cost is now visible to the budget guard,
+  // and every budgetExceeded branch persists what was already produced.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  it("trips budget guard at inputValidation when Phase 0 LLM call exceeds budget (6.2.9 R2)", async () => {
+    const provider = new MockProvider({
+      structuredResponses: [
+        {
+          valid: true,
+          validatedProposition: "Test proposition",
+          detectedLanguage: "zh",
+        },
+      ],
+      usagePerCall: [
+        { inputTokens: 100, outputTokens: 50, totalTokens: 150, estimatedCostUSD: 1.0 },
+      ],
+    });
+
+    const deps = createTestDeps(provider);
+    deps.tokenBudgetUSD = 0.5; // Phase 0 alone (1.0) blows this
+    const machine = createResearchMachine(deps);
+    const context = createTestContext();
+
+    const final = await new Promise<{ state: string; ctx: ResearchContext }>((resolve) => {
+      const actor = createActor(machine, { input: context });
+      actor.subscribe({
+        complete: () => {
+          const snap = actor.getSnapshot();
+          resolve({ state: snap.value as string, ctx: snap.context });
+        },
+      });
+      actor.start();
+    });
+
+    expect(final.state).toBe("budgetExceeded");
+    // Token usage from Phase 0 must be recorded even though we halted there.
+    expect(final.ctx.tokenUsage.estimatedCostUSD).toBeGreaterThan(0);
+    expect(final.ctx.tokenUsage.totalTokens).toBe(150);
+    // 6.2.10 — persistState fires on budgetExceeded so ops can audit cost.
+    expect(deps.persistState).toHaveBeenCalled();
+  });
+
+  it("persists assumptions when decomposition trips the budget guard (6.2.10 R2)", async () => {
+    const provider = new MockProvider({
+      structuredResponses: [
+        // Phase 0
+        { valid: true, validatedProposition: "Test", detectedLanguage: "zh" },
+        // Phase 1: decompose — returns assumptions and high cost
+        {
+          assumptions: [
+            { content: "A1", type: "factual", importance: "high", order: 1 },
+            { content: "A2", type: "judgmental", importance: "medium", order: 2 },
+          ],
+        },
+      ],
+      usagePerCall: [
+        // Phase 0 cheap, fits in budget
+        { inputTokens: 10, outputTokens: 5, totalTokens: 15, estimatedCostUSD: 0.01 },
+        // Phase 1 expensive, exceeds budget
+        { inputTokens: 1000, outputTokens: 500, totalTokens: 1500, estimatedCostUSD: 1.0 },
+      ],
+    });
+
+    const deps = createTestDeps(provider);
+    deps.tokenBudgetUSD = 0.5;
+    const machine = createResearchMachine(deps);
+    const context = createTestContext();
+
+    const final = await new Promise<{ state: string; ctx: ResearchContext }>((resolve) => {
+      const actor = createActor(machine, { input: context });
+      actor.subscribe({
+        complete: () => {
+          const snap = actor.getSnapshot();
+          resolve({ state: snap.value as string, ctx: snap.context });
+        },
+      });
+      actor.start();
+    });
+
+    expect(final.state).toBe("budgetExceeded");
+    // Assumptions were already produced — they must survive on context AND
+    // persistState must have been invoked at least once on this branch
+    // (Phase 0 success path fires once, decomposition budget fires another).
+    expect(final.ctx.assumptions).toHaveLength(2);
+    expect(final.ctx.assumptions[0].id).toBeTruthy();
+    const persistCalls = (deps.persistState as ReturnType<typeof vi.fn>).mock.calls;
+    expect(persistCalls.length).toBeGreaterThanOrEqual(2);
+    // The last persistState call must include the produced assumptions.
+    const lastCtx = persistCalls[persistCalls.length - 1][0] as ResearchContext;
+    expect(lastCtx.assumptions).toHaveLength(2);
+  });
 });

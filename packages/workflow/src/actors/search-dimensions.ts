@@ -45,6 +45,12 @@ export const searchDimensions = fromPromise(
     const dimensionLimiter = pLimit(searchDeps.searchConcurrencyLimit);
     const allEvidence: EvidenceData[] = [];
     const dimensionResults: RetrievalResult["dimensionResults"] = [];
+    const totalUsage: RetrievalResult["usage"] = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      estimatedCostUSD: 0,
+    };
 
     // If targetedDimensions is set (self-check retry), only re-search those dimensions.
     // Dimensions now carry stable ids assigned at planning, so we can filter directly.
@@ -76,6 +82,11 @@ export const searchDimensions = fromPromise(
           roundsUsed: result.roundsUsed,
         });
 
+        totalUsage.inputTokens += result.usage.inputTokens;
+        totalUsage.outputTokens += result.usage.outputTokens;
+        totalUsage.totalTokens += result.usage.totalTokens;
+        totalUsage.estimatedCostUSD += result.usage.estimatedCostUSD;
+
         for (const candidate of result.evidence) {
           allEvidence.push({
             id: generateId(),
@@ -103,6 +114,7 @@ export const searchDimensions = fromPromise(
       evidence: allEvidence,
       searchCallsUsed: callCounter.used,
       dimensionResults,
+      usage: totalUsage,
     };
   }
 );

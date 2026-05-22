@@ -238,4 +238,44 @@ describe("workflow e2e (mock LLM + memory search)", () => {
     // emitEvent fires phase_change/eta_update/etc throughout.
     expect((deps.emitEvent as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(5);
   }, 15_000);
+
+  it("propagates Phase 0 + Phase 3 LLM usage into context.tokenUsage (6.2.9 R2)", async () => {
+    // Every structuredOutput call simulated as costing 0.001 USD / 30 tokens.
+    // Pipeline calls: 1 validate + 1 decompose + 1 plan + N evaluateEvidence
+    //   + (refineKeywords if rounds > 1) + 1 cross-validate + 1 synthesize.
+    // We don't need to know the exact N — only that the total cost reflects
+    // more than the 4 actors that 6.2.9 already covered.
+    const usage = Array.from({ length: 30 }).map(() => ({
+      inputTokens: 20,
+      outputTokens: 10,
+      totalTokens: 30,
+      estimatedCostUSD: 0.001,
+    }));
+    const provider = new MockProvider({
+      structuredResponses: buildLLMResponses(),
+      usagePerCall: usage,
+    });
+    const deps = createDeps(provider);
+    const machine = createResearchMachine(deps);
+    const context = createInitialContext();
+
+    const finalState = await new Promise<{ state: string; ctx: ResearchContext }>((resolve) => {
+      const actor = createActor(machine, { input: context });
+      actor.subscribe({
+        complete: () => {
+          const snap = actor.getSnapshot();
+          resolve({ state: snap.value as string, ctx: snap.context });
+        },
+      });
+      actor.start();
+    });
+
+    expect(finalState.state).toBe("completed");
+    // Pre-6.2.9 the budget guard saw at most 4 calls (validate was free,
+    // evaluateEvidence was free). With the fix in place we should see at
+    // least 5 calls accounted for: validate + decompose + plan + ≥1
+    // evaluateEvidence + cross-validate + synthesize ⇒ ≥0.005 USD.
+    expect(finalState.ctx.tokenUsage.estimatedCostUSD).toBeGreaterThanOrEqual(0.005);
+    expect(finalState.ctx.tokenUsage.totalTokens).toBeGreaterThanOrEqual(150);
+  }, 15_000);
 });

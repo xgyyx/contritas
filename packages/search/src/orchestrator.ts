@@ -12,6 +12,7 @@ import {
   wrapExternalContent,
   EXTERNAL_CONTENT_SAFETY_CLAUSE,
 } from "@contritas/shared";
+import type { TokenUsage } from "@contritas/shared";
 import type {
   SearchOrchestratorConfig,
   DimensionSearchInput,
@@ -58,6 +59,12 @@ export class SearchOrchestrator {
     let currentKeywords = { ...input.keywords };
     let roundsUsed = 0;
     const startingCalls = this.callCounter.used;
+    const totalUsage: TokenUsage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      estimatedCostUSD: 0,
+    };
 
     for (let round = 1; round <= input.maxRounds; round++) {
       if (this.callCounter.exhausted) break;
@@ -82,7 +89,8 @@ export class SearchOrchestrator {
 
       // 4. Evaluate evidence via LLM (batch, max 5 per call)
       if (contents.length > 0) {
-        const candidates = await this.evaluateEvidence(contents, input, round, usedQueries);
+        const { candidates, usage } = await this.evaluateEvidence(contents, input, round, usedQueries);
+        addUsageInPlace(totalUsage, usage);
         for (const candidate of candidates) {
           evidence.push(candidate);
           this.onEvent?.({
@@ -109,7 +117,8 @@ export class SearchOrchestrator {
       //    gives up (returns empty arrays), break: another round with no
       //    new queries would be pure waste.
       if (round < input.maxRounds && !this.callCounter.exhausted) {
-        const refined = await this.refineKeywords(evidence, input, usedQueries);
+        const { keywords: refined, usage } = await this.refineKeywords(evidence, input, usedQueries);
+        addUsageInPlace(totalUsage, usage);
         if (refined.zh.length === 0 && refined.en.length === 0) {
           break;
         }
@@ -123,6 +132,7 @@ export class SearchOrchestrator {
       roundsUsed,
       searchCallsUsed: this.callCounter.used - startingCalls,
       sufficient: this.isSufficient(evidence),
+      usage: totalUsage,
     };
   }
 
@@ -249,7 +259,7 @@ export class SearchOrchestrator {
     dimension: DimensionSearchInput,
     round: number,
     usedQueries: string[]
-  ): Promise<EvidenceCandidate[]> {
+  ): Promise<{ candidates: EvidenceCandidate[]; usage: TokenUsage }> {
     const batchSize = 5;
     const batches: ExtractedContent[][] = [];
     for (let i = 0; i < contents.length; i += batchSize) {
@@ -259,14 +269,27 @@ export class SearchOrchestrator {
     const results = await Promise.all(
       batches.map((b) => this.processBatch(b, dimension, round, usedQueries))
     );
-    return results.flat();
+    const candidates: EvidenceCandidate[] = [];
+    const usage: TokenUsage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      estimatedCostUSD: 0,
+    };
+    for (const r of results) {
+      candidates.push(...r.candidates);
+      addUsageInPlace(usage, r.usage);
+    }
+    return { candidates, usage };
   }
 
   /**
    * Evaluate a batch with split-retry: if the LLM rejects the whole batch
    * (oversize / unparseable / one toxic payload), recurse on halves so good
    * items still make it through. Only fully drop a single item after it has
-   * been isolated, and log the drop.
+   * been isolated, and log the drop. Token usage is summed across the
+   * primary attempt and any recursive halves so 6.2.9 budget guard sees the
+   * full cost even when retries fan out.
    */
   private async processBatch(
     batch: ExtractedContent[],
@@ -274,17 +297,23 @@ export class SearchOrchestrator {
     round: number,
     usedQueries: string[],
     depth = 0
-  ): Promise<EvidenceCandidate[]> {
+  ): Promise<{ candidates: EvidenceCandidate[]; usage: TokenUsage }> {
     try {
       return await this.evaluateBatchOnce(batch, dimension, round, usedQueries);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      const zeroUsage: TokenUsage = {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        estimatedCostUSD: 0,
+      };
       if (batch.length === 1) {
         const url = batch[0]?.url ?? "unknown";
         console.warn(
           `[evaluateEvidence] dropping single content after retry: url=${url} depth=${depth} err=${message}`
         );
-        return [];
+        return { candidates: [], usage: zeroUsage };
       }
       const mid = Math.floor(batch.length / 2);
       console.debug(
@@ -294,7 +323,12 @@ export class SearchOrchestrator {
         this.processBatch(batch.slice(0, mid), dimension, round, usedQueries, depth + 1),
         this.processBatch(batch.slice(mid), dimension, round, usedQueries, depth + 1),
       ]);
-      return [...left, ...right];
+      addUsageInPlace(zeroUsage, left.usage);
+      addUsageInPlace(zeroUsage, right.usage);
+      return {
+        candidates: [...left.candidates, ...right.candidates],
+        usage: zeroUsage,
+      };
     }
   }
 
@@ -303,7 +337,7 @@ export class SearchOrchestrator {
     dimension: DimensionSearchInput,
     round: number,
     usedQueries: string[]
-  ): Promise<EvidenceCandidate[]> {
+  ): Promise<{ candidates: EvidenceCandidate[]; usage: TokenUsage }> {
     const contentSummaries = batch
       .map((c, idx) => {
         // Truncate content to ~2000 chars to fit in LLM context
@@ -324,7 +358,7 @@ ${contentSummaries}
 
 Evaluate each content piece. Respond with JSON.`;
 
-    const { data } = await this.llmProvider.structuredOutput({
+    const { data, usage } = await this.llmProvider.structuredOutput({
       model: this.llmModel,
       messages: [{ role: "user", content: userMessage }],
       schema: phase3EvidenceEvalSchema,
@@ -352,7 +386,7 @@ Evaluate each content piece. Respond with JSON.`;
         searchRound: round,
       });
     }
-    return candidates;
+    return { candidates, usage };
   }
 
   private isSufficient(evidence: EvidenceCandidate[]): boolean {
@@ -365,7 +399,7 @@ Evaluate each content piece. Respond with JSON.`;
     evidence: EvidenceCandidate[],
     dimension: DimensionSearchInput,
     usedQueries: string[]
-  ): Promise<{ zh: string[]; en: string[] }> {
+  ): Promise<{ keywords: { zh: string[]; en: string[] }; usage: TokenUsage }> {
     const evidenceSummary = evidence.map((e) => {
       const body = `[${e.credibility}] ${e.sourceName}: ${e.relationship}\nExcerpt: ${e.keyExcerpt.slice(0, 100)}`;
       return `- ${wrapExternalContent(body, { kind: "evidence-summary", source: e.url })}`;
@@ -385,7 +419,7 @@ ${usedQueries.map((q) => `- "${q}"`).join("\n")}
 Analyze gaps and suggest new keywords. Respond with JSON.`;
 
     try {
-      const { data } = await this.llmProvider.structuredOutput({
+      const { data, usage } = await this.llmProvider.structuredOutput({
         model: this.llmModel,
         messages: [{ role: "user", content: userMessage }],
         schema: phase3KeywordRefineSchema,
@@ -393,7 +427,7 @@ Analyze gaps and suggest new keywords. Respond with JSON.`;
         temperature: 0.3,
       });
 
-      return data.newKeywords;
+      return { keywords: data.newKeywords, usage };
     } catch (err) {
       // 6.5.8: returning the old keywords meant the next round generated
       // zero new queries after dedup, looping uselessly. Returning empty
@@ -402,7 +436,10 @@ Analyze gaps and suggest new keywords. Respond with JSON.`;
       console.warn(
         `[refineKeywords] giving up: dim=${dimension.dimensionId} round=${usedQueries.length} err=${message}`
       );
-      return { zh: [], en: [] };
+      return {
+        keywords: { zh: [], en: [] },
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUSD: 0 },
+      };
     }
   }
 
@@ -410,4 +447,11 @@ Analyze gaps and suggest new keywords. Respond with JSON.`;
     const chineseChars = text.match(/[\u4e00-\u9fff]/g)?.length ?? 0;
     return chineseChars > text.length * 0.1 ? "zh" : "en";
   }
+}
+
+function addUsageInPlace(target: TokenUsage, delta: TokenUsage): void {
+  target.inputTokens += delta.inputTokens;
+  target.outputTokens += delta.outputTokens;
+  target.totalTokens += delta.totalTokens;
+  target.estimatedCostUSD += delta.estimatedCostUSD;
 }

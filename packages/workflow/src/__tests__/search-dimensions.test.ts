@@ -75,8 +75,13 @@ function buildLLMResponses(numDims: number) {
   }));
 }
 
-function createDeps(searchDeps?: SearchDeps): WorkflowDeps {
-  const provider = new MockProvider({ structuredResponses: buildLLMResponses(3) });
+function createDeps(searchDeps?: SearchDeps, usagePerCall?: Array<{
+  inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUSD: number;
+}>): WorkflowDeps {
+  const provider = new MockProvider({
+    structuredResponses: buildLLMResponses(3),
+    usagePerCall,
+  });
   return {
     llmProvider: provider,
     getModelForPhase: () => "mock-model",
@@ -190,5 +195,28 @@ describe("Search Dimensions Actor", () => {
     // Orchestrator forwards search events; we shouldn't see workflow-level
     // phase_change here (that's the machine's job).
     expect(types.has("phase_change")).toBe(false);
+  });
+
+  it("aggregates LLM usage from evaluateEvidence/refineKeywords across all dims (6.2.9 R2)", async () => {
+    // Each evaluateEvidence call costs 0.1 USD; with 2 dims and at least 1
+    // evaluation call per dim we expect total >= 0.2.
+    const fakeUsage = Array.from({ length: 12 }).map(() => ({
+      inputTokens: 200,
+      outputTokens: 100,
+      totalTokens: 300,
+      estimatedCostUSD: 0.1,
+    }));
+    const deps = createDeps(buildSearchDeps(), fakeUsage);
+    const ctx = createContext([
+      makeDimension("d1", "Dim1"),
+      makeDimension("d2", "Dim2"),
+    ]);
+
+    const result = await invokeActor(searchDimensions, { context: ctx, deps });
+
+    expect(result.usage).toBeDefined();
+    // At least one evaluateEvidence batch fired per dim — total cost > 0.
+    expect(result.usage.estimatedCostUSD).toBeGreaterThan(0);
+    expect(result.usage.totalTokens).toBeGreaterThan(0);
   });
 });

@@ -17,6 +17,12 @@ export interface MockCall {
 interface MockConfig {
   responses?: string[];
   structuredResponses?: unknown[];
+  /**
+   * Optional per-call token usage. If shorter than the response array (or
+   * omitted), remaining calls fall back to ZERO_USAGE. Useful for budget
+   * guard tests that need to simulate non-zero LLM cost.
+   */
+  usagePerCall?: TokenUsage[];
   latencyMs?: number;
 }
 
@@ -102,14 +108,14 @@ export class MockProvider implements LLMProvider {
   async structuredOutput<T>(
     params: StructuredParams<T>
   ): Promise<{ data: T; usage: TokenUsage }> {
+    const callIndex = this.structuredResponseIndex;
     this.calls.push({ method: "structuredOutput", params, timestamp: Date.now() });
 
     if (this.config.latencyMs) {
       await new Promise((r) => setTimeout(r, this.config.latencyMs));
     }
 
-    const responseData =
-      this.config.structuredResponses?.[this.structuredResponseIndex];
+    const responseData = this.config.structuredResponses?.[callIndex];
     this.structuredResponseIndex =
       (this.structuredResponseIndex + 1) %
       (this.config.structuredResponses?.length ?? 1);
@@ -121,6 +127,7 @@ export class MockProvider implements LLMProvider {
     }
 
     const validated = params.schema.parse(responseData);
-    return { data: validated, usage: ZERO_USAGE };
+    const usage = this.config.usagePerCall?.[callIndex] ?? ZERO_USAGE;
+    return { data: validated, usage };
   }
 }

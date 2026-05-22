@@ -60,6 +60,39 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
           input: ({ context }) => ({ context, deps }),
           onDone: [
             {
+              // Budget guard fires regardless of validity — record cost,
+              // persist what we have, then halt. 6.2.9 (R2): without this,
+              // Phase 0 LLM cost was invisible to the budget guard.
+              guard: ({ context, event }: { context: ResearchContext; event: AnyEventObject }) => {
+                const budget = deps.tokenBudgetUSD ?? DEFAULT_TOKEN_BUDGET_USD;
+                const usage = (event.output as ValidateInputResult)?.usage;
+                const newCost = context.tokenUsage.estimatedCostUSD + (usage?.estimatedCostUSD ?? 0);
+                return newCost >= budget;
+              },
+              target: "budgetExceeded",
+              actions: [
+                assign({
+                  tokenUsage: ({ context, event }) => {
+                    const usage = (event.output as ValidateInputResult).usage;
+                    return {
+                      inputTokens: context.tokenUsage.inputTokens + usage.inputTokens,
+                      outputTokens: context.tokenUsage.outputTokens + usage.outputTokens,
+                      totalTokens: context.tokenUsage.totalTokens + usage.totalTokens,
+                      estimatedCostUSD: context.tokenUsage.estimatedCostUSD + usage.estimatedCostUSD,
+                    };
+                  },
+                }),
+                ({ context }) => {
+                  deps.emitEvent({
+                    type: "error",
+                    message: `Token budget exceeded ($${context.tokenUsage.estimatedCostUSD.toFixed(4)} / $${deps.tokenBudgetUSD ?? DEFAULT_TOKEN_BUDGET_USD})`,
+                    recoverable: false,
+                  });
+                },
+                ({ context }) => { deps.persistState(context); },
+              ],
+            },
+            {
               guard: "inputValid",
               target: "decomposition",
               actions: [
@@ -69,6 +102,15 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
                     validatedProposition: (event.output as ValidateInputResult).output.validatedProposition ?? context.input.originalText,
                     language: (event.output as ValidateInputResult).output.detectedLanguage,
                   }),
+                  tokenUsage: ({ context, event }) => {
+                    const usage = (event.output as ValidateInputResult).usage;
+                    return {
+                      inputTokens: context.tokenUsage.inputTokens + usage.inputTokens,
+                      outputTokens: context.tokenUsage.outputTokens + usage.outputTokens,
+                      totalTokens: context.tokenUsage.totalTokens + usage.totalTokens,
+                      estimatedCostUSD: context.tokenUsage.estimatedCostUSD + usage.estimatedCostUSD,
+                    };
+                  },
                   phases: ({ context }) => [
                     ...context.phases.filter((p) => p.id !== "inputValidation"),
                     { id: "inputValidation" as const, status: "completed" as const, completedAt: new Date().toISOString() },
@@ -83,6 +125,15 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
               target: "awaitingClarification",
               actions: [
                 assign({
+                  tokenUsage: ({ context, event }) => {
+                    const usage = (event.output as ValidateInputResult).usage;
+                    return {
+                      inputTokens: context.tokenUsage.inputTokens + usage.inputTokens,
+                      outputTokens: context.tokenUsage.outputTokens + usage.outputTokens,
+                      totalTokens: context.tokenUsage.totalTokens + usage.totalTokens,
+                      estimatedCostUSD: context.tokenUsage.estimatedCostUSD + usage.estimatedCostUSD,
+                    };
+                  },
                   phases: ({ context }) => [
                     ...context.phases.filter((p) => p.id !== "inputValidation"),
                     { id: "inputValidation" as const, status: "started" as const, startedAt: new Date().toISOString() },
@@ -103,7 +154,18 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
               // Invalid without clarification questions
               target: "failed",
               actions: [
-                assign({ error: ({ event }) => (event.output as ValidateInputResult).output.reason ?? "Invalid input" }),
+                assign({
+                  error: ({ event }) => (event.output as ValidateInputResult).output.reason ?? "Invalid input",
+                  tokenUsage: ({ context, event }) => {
+                    const usage = (event.output as ValidateInputResult).usage;
+                    return {
+                      inputTokens: context.tokenUsage.inputTokens + usage.inputTokens,
+                      outputTokens: context.tokenUsage.outputTokens + usage.outputTokens,
+                      totalTokens: context.tokenUsage.totalTokens + usage.totalTokens,
+                      estimatedCostUSD: context.tokenUsage.estimatedCostUSD + usage.estimatedCostUSD,
+                    };
+                  },
+                }),
                 () => { deps.emitEvent({ type: "error", message: "Input is not a valid research proposition", recoverable: false }); },
               ],
             },
@@ -172,6 +234,10 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
                     recoverable: false,
                   });
                 },
+                // 6.2.10 (R2): persist already-generated assumptions even on
+                // budget exhaustion — without this the user pays for the
+                // LLM call but loses the produced rows.
+                ({ context }) => { deps.persistState(context); },
               ],
             },
             {
@@ -240,6 +306,9 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
                     recoverable: false,
                   });
                 },
+                // 6.2.10 (R2): persist already-generated dimensions on
+                // budget exhaustion.
+                ({ context }) => { deps.persistState(context); },
               ],
             },
             {
@@ -292,32 +361,91 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
         invoke: {
           src: "searchDimensions",
           input: ({ context }) => ({ context, deps }),
-          onDone: {
-            target: "validation",
-            actions: [
-              assign({
-                evidence: ({ context, event }) => {
-                  const newEvidence = (event.output as RetrievalResult).evidence;
-                  // On retry, merge with existing evidence (avoid duplicates by URL)
-                  if (context.selfCheckRetries > 0) {
-                    const existingUrls = new Set(context.evidence.map((e) => e.url));
-                    const unique = newEvidence.filter((e) => !existingUrls.has(e.url));
-                    return [...context.evidence, ...unique];
-                  }
-                  return newEvidence;
+          onDone: [
+            {
+              // 6.2.9 (R2): retrieval is the heaviest cost driver — every
+              // evaluateEvidence/refineKeywords call inside the orchestrator
+              // now reports usage; if the cumulative cost crosses the
+              // budget, persist what we have (evidence + searchCallsUsed)
+              // and halt before validation/synthesis spends more.
+              guard: ({ context, event }: { context: ResearchContext; event: AnyEventObject }) => {
+                const budget = deps.tokenBudgetUSD ?? DEFAULT_TOKEN_BUDGET_USD;
+                const usage = (event.output as RetrievalResult)?.usage;
+                const newCost = context.tokenUsage.estimatedCostUSD + (usage?.estimatedCostUSD ?? 0);
+                return newCost >= budget;
+              },
+              target: "budgetExceeded",
+              actions: [
+                assign({
+                  evidence: ({ context, event }) => {
+                    const newEvidence = (event.output as RetrievalResult).evidence;
+                    if (context.selfCheckRetries > 0) {
+                      const existingUrls = new Set(context.evidence.map((e) => e.url));
+                      const unique = newEvidence.filter((e) => !existingUrls.has(e.url));
+                      return [...context.evidence, ...unique];
+                    }
+                    return newEvidence;
+                  },
+                  searchCallsUsed: ({ context, event }) =>
+                    context.searchCallsUsed + (event.output as RetrievalResult).searchCallsUsed,
+                  tokenUsage: ({ context, event }) => {
+                    const usage = (event.output as RetrievalResult).usage;
+                    return {
+                      inputTokens: context.tokenUsage.inputTokens + usage.inputTokens,
+                      outputTokens: context.tokenUsage.outputTokens + usage.outputTokens,
+                      totalTokens: context.tokenUsage.totalTokens + usage.totalTokens,
+                      estimatedCostUSD: context.tokenUsage.estimatedCostUSD + usage.estimatedCostUSD,
+                    };
+                  },
+                }),
+                ({ context }) => {
+                  deps.emitEvent({
+                    type: "error",
+                    message: `Token budget exceeded ($${context.tokenUsage.estimatedCostUSD.toFixed(4)} / $${deps.tokenBudgetUSD ?? DEFAULT_TOKEN_BUDGET_USD})`,
+                    recoverable: false,
+                  });
                 },
-                searchCallsUsed: ({ context, event }) =>
-                  context.searchCallsUsed + (event.output as RetrievalResult).searchCallsUsed,
-                targetedDimensions: () => undefined,
-                phases: ({ context }) => [
-                  ...context.phases.filter((p) => p.id !== "retrieval"),
-                  { id: "retrieval" as const, status: "completed" as const, completedAt: new Date().toISOString() },
-                ],
-              }),
-              () => { deps.emitEvent({ type: "phase_change", phase: "retrieval", status: "completed" }); },
-              ({ context }) => { deps.persistState(context); },
-            ],
-          },
+                // 6.2.10 (R2): persist evidence collected before the budget
+                // tripped — same rationale as decomposition/planning.
+                ({ context }) => { deps.persistState(context); },
+              ],
+            },
+            {
+              target: "validation",
+              actions: [
+                assign({
+                  evidence: ({ context, event }) => {
+                    const newEvidence = (event.output as RetrievalResult).evidence;
+                    // On retry, merge with existing evidence (avoid duplicates by URL)
+                    if (context.selfCheckRetries > 0) {
+                      const existingUrls = new Set(context.evidence.map((e) => e.url));
+                      const unique = newEvidence.filter((e) => !existingUrls.has(e.url));
+                      return [...context.evidence, ...unique];
+                    }
+                    return newEvidence;
+                  },
+                  searchCallsUsed: ({ context, event }) =>
+                    context.searchCallsUsed + (event.output as RetrievalResult).searchCallsUsed,
+                  tokenUsage: ({ context, event }) => {
+                    const usage = (event.output as RetrievalResult).usage;
+                    return {
+                      inputTokens: context.tokenUsage.inputTokens + usage.inputTokens,
+                      outputTokens: context.tokenUsage.outputTokens + usage.outputTokens,
+                      totalTokens: context.tokenUsage.totalTokens + usage.totalTokens,
+                      estimatedCostUSD: context.tokenUsage.estimatedCostUSD + usage.estimatedCostUSD,
+                    };
+                  },
+                  targetedDimensions: () => undefined,
+                  phases: ({ context }) => [
+                    ...context.phases.filter((p) => p.id !== "retrieval"),
+                    { id: "retrieval" as const, status: "completed" as const, completedAt: new Date().toISOString() },
+                  ],
+                }),
+                () => { deps.emitEvent({ type: "phase_change", phase: "retrieval", status: "completed" }); },
+                ({ context }) => { deps.persistState(context); },
+              ],
+            },
+          ],
           onError: {
             target: "failed",
             actions: [
@@ -366,6 +494,8 @@ export function createResearchMachine(deps: WorkflowDeps, initialState: string =
                     recoverable: false,
                   });
                 },
+                // 6.2.10 (R2): persist crossValidations on budget exhaustion.
+                ({ context }) => { deps.persistState(context); },
               ],
             },
             {

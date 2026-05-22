@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### Fixed — R2 高优批 1（6.2.9 / 6.2.10）
+
+- **Phase 0 / Phase 3 LLM 用量纳入预算守门**（6.2.9）：`ValidateInputResult` / `RetrievalResult` 增加 `usage: TokenUsage` 字段；`SearchOrchestrator.searchDimension` 在内部累计 `evaluateEvidence` + `refineKeywords` + split-retry 的所有 usage 并暴露在 `DimensionSearchResult.usage`；`search-dimensions` actor 聚合各 dim usage 进 RetrievalResult。XState `inputValidation` 与 `retrieval` 的 `onDone` 增加 budget-exceeded 守卫与 tokenUsage 累加，使预算守门覆盖 6 个 LLM 阶段（之前仅 4 个 actor）。
+- **超预算时已生成数据落盘**（6.2.10）：`decomposition` / `planning` / `validation` / `retrieval` / `inputValidation` 五处 `budgetExceeded` 分支末尾追加 `deps.persistState(context)` action，确保用户付费产出（assumptions / dimensions / evidence / crossValidations / tokenUsage）不丢失。
+- **MockProvider 可注入 usage**（测试基建）：新增 `usagePerCall: TokenUsage[]` config，便于 budget guard 单测构造非零成本。
+
 ### Added — DX 收尾批（6.9.3 / 6.9.6 / 6.9.7）
 - **ESLint flat config**（6.9.3）：根 `eslint.config.mjs` 接 `typescript-eslint`，覆盖 `apps/api` + `packages/*`；`apps/web` 走 `next lint`（ESLint 8 + `eslint-config-next`，避免 ESLint 9 与 next 14 的 peer 不兼容）。各 package 加 `lint` script，`turbo lint` 全仓扫描，CI 新增 lint 步骤。
 - **dev.sh 一键起三进程**（6.9.6）：`scripts/dev.sh` 改为并行拉 api + worker + web；`trap` 转发 SIGINT/SIGTERM 到所有子进程，任一退出整体收摊。
