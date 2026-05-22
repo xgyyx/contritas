@@ -139,7 +139,9 @@ export async function processResearchJob(job: Job<ResearchJobData>): Promise<voi
   await completionPromise;
 }
 
-async function handleAwaitingClarification(
+// Exported for unit testing (6.7.6). Production code paths route through
+// processResearchJob which is the only in-tree caller.
+export async function handleAwaitingClarification(
   sessionId: string,
   controller: ReturnType<typeof createWorkflowController>,
   job: Job,

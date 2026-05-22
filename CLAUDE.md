@@ -113,7 +113,7 @@ Schema 定义：`apps/api/src/drizzle/schema.ts`（Drizzle 格式，以代码为
 - Phase 3 分析与报告 ✅（交叉验证 + 报告综合 + 评分 + 自检）
 - Phase 4 前端 ✅（Next.js + SSE 实时 + 报告查看 + 历史 + 迭代交互）
 - Phase 5 优化与扩展 ✅（ModelRouter 路由 + Token 预算 + 搜索缓存优化 + ETA 事件 + 迭代修复）
-- Phase 6 加固与生产就绪 🚧（10 个子领域：6.1 安全鉴权 ✅ / 6.2 数据一致性 ✅ / 6.3 Worker 稳定性（核心 clarification 三项 ✅；loadConfig 单例 / DLQ 监控待办）/ 6.4 SSE 可靠性 ✅ / 6.5 LLM 可靠性与成本 ✅（两档路由 + tool_use / json_schema + prompt caching + Top-K + split-retry；6.5.3 流式输出已弃）/ 6.6 可观测性（pino + 三级 correlation id + errorId ✅；请求日志 / metrics / Sentry / health 扩展待办）/ 6.7 测试覆盖（API 集成 + e2e ✅；actor 单测 / web 组件测试 / BullMQ 回归待办）/ 6.8 容器化加固 ✅（HEALTHCHECK + auto-migration 已在 0.7.0 完成）/ 6.9 DX 工程化（CI + changesets + GHCR release + ESLint flat config + dev.sh 并行 + ignore 已就位 ✅；pre-commit / noUncheckedIndexedAccess 待办）/ 6.10 文档同步（security.md / docker.md 加固 / data-model 索引说明 ✅；CLAUDE.md 与各 README 持续同步中））
+- Phase 6 加固与生产就绪 🚧（10 个子领域：6.1 安全鉴权 ✅ / 6.2 数据一致性 ✅ / 6.3 Worker 稳定性（核心 clarification 三项 ✅；loadConfig 单例 / DLQ 监控待办）/ 6.4 SSE 可靠性 ✅ / 6.5 LLM 可靠性与成本 ✅（两档路由 + tool_use / json_schema + prompt caching + Top-K + split-retry；6.5.3 流式输出已弃）/ 6.6 可观测性（pino + 三级 correlation id + errorId ✅；请求日志 / metrics / Sentry / health 扩展待办）/ 6.7 测试覆盖 ✅（API 集成 + e2e + 4 个 workflow actor 单测 + BullMQ clarification 回归 + apps/web 4 组件 RTL 测试，共 166 测试）/ 6.8 容器化加固 ✅（HEALTHCHECK + auto-migration 已在 0.7.0 完成）/ 6.9 DX 工程化（CI + changesets + GHCR release + ESLint flat config + dev.sh 并行 + ignore 已就位 ✅；pre-commit / noUncheckedIndexedAccess 待办）/ 6.10 文档同步（security.md / docker.md 加固 / data-model 索引说明 ✅；CLAUDE.md 与各 README 持续同步中））
 
 总体规划详见 `docs/progress/roadmap.md`，工单级执行手册详见 `docs/progress/phase6-progress.md`。
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { createActor, toPromise } from "xstate";
 import { synthesizeReport } from "../actors/synthesize-report.js";
 import type { ResearchContext, WorkflowDeps } from "../types.js";
 import { MockProvider } from "@contritas/llm";
@@ -185,9 +186,11 @@ function createFullContext(): ResearchContext {
   };
 }
 
-/** Invoke a fromPromise actor's underlying function directly */
-function invokeActor(actor: any, input: any) {
-  return actor.config({ input });
+/** Run a fromPromise actor to completion using XState's public API. */
+function invokeActor(actor: any, input: any): Promise<any> {
+  const a = createActor(actor, { input });
+  a.start();
+  return toPromise(a);
 }
 
 describe("Synthesize Report Actor", () => {
