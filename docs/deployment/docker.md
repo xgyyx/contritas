@@ -252,7 +252,18 @@ docker pull ghcr.io/xgyyx/contritas-web:0.6.0
 
 ---
 
-## 八、镜像体积优化
+## 八、低成本部署方案
+
+针对 0 / 极低基础设施成本场景（早期项目、个人 / 私有部署），仓库内提供一套现成的部署目录：
+
+- **`deploy/oracle-free-tier/`** — Oracle Cloud Always Free ARM 单机部署，5 个服务全跑一台 + Caddy 自动 TLS + Object Storage 备份；基础设施 **~$1/月**（仅域名）。
+- 完整步骤、Oracle 特有坑（iptables、Reserve IP、空闲回收）见 [oracle-free-tier.md](./oracle-free-tier.md)。
+
+换平台（Hetzner / 阿里轻量 / 自有 VPS）时大部分配置可复用，把 compose 里的 `platform: linux/arm64` 去掉即可。
+
+---
+
+## 九、镜像体积优化
 
 | 措施 | 效果 |
 |------|------|
