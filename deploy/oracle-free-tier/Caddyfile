@@ -1,0 +1,30 @@
+# Caddy v2 配置 — 自动 TLS（Let's Encrypt）+ SSE 长连接友好
+#
+# 域名通过 {$DOMAIN} 环境变量注入（compose 中传入）。
+# 两个子域必须先在 DNS 解析到 VPS 公网 IP，且 Oracle Security List + 宿主 iptables
+# 都已放行 80/443，否则 Caddy 申请证书会失败。
+
+app.{$DOMAIN} {
+    encode zstd gzip
+    reverse_proxy web:3000
+}
+
+api.{$DOMAIN} {
+    encode zstd gzip
+
+    # SSE 端点不能 buffer，也不能用上面的 encode 压缩（流式分块）
+    @sse path_regexp sse ^/api/research/[^/]+/stream$
+    handle @sse {
+        reverse_proxy api:4000 {
+            flush_interval -1
+            transport http {
+                response_header_timeout 24h
+                read_timeout 24h
+            }
+        }
+    }
+
+    handle {
+        reverse_proxy api:4000
+    }
+}
