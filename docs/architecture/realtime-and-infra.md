@@ -35,7 +35,7 @@
 
 - **服务端**：Hono `streamSSE` + Redis PubSub 订阅，先发送 catchup 事件（历史），再订阅实时流
 - **客户端**：React Hook `useResearchStream`，使用 Zustand 累积事件构建完整进度视图
-- **断线重连**：浏览器原生 EventSource 自动重连 + `Last-Event-ID` 头实现事件补发
+- **断线重连**：浏览器原生 EventSource 自动重连，但跨域 + 自定义 query 场景下不会自动 fan-out `Last-Event-ID` header；客户端 `apps/web/src/lib/sse-client.ts` 因此手动维护 `lastEventId`，重连时通过 `URLSearchParams` 拼入 `?lastEventId=` query；服务端 `getEventHistory` 同时支持 `Last-Event-ID` header 与 `?lastEventId=` query，做 `XRANGE ${lastId} +` 增量回放（6.4.6 服务端 + 6.4.8 客户端）
 - **心跳保活**：30 秒间隔
 
 ### 1.4 事件持久化
