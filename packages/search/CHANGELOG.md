@@ -1,5 +1,17 @@
 # @contritas/search
 
+## 0.7.2
+
+### Patch Changes
+
+- 0d5ea7c: Phase 6 R2 6.2.9 + 6.2.10：Phase 0 / Phase 3 LLM token usage 接入预算守门，budget-exceeded 三分支落盘。
+- 014cc07: Phase 6 R2 6.1.8：cross-validate actor 接入 wrapExternalContent + EXTERNAL_CONTENT_SAFETY_CLAUSE，关掉最后一个未围栏的 prompt-injection 入口。
+- ec10345: Phase 6 R2 6.4.8：sse-client.ts 维护 lastEventId 并在重连 URL 上传递，前端真正用上服务端的 SSE 增量回放。
+- Updated dependencies [0d5ea7c]
+- Updated dependencies [014cc07]
+- Updated dependencies [ec10345]
+  - @contritas/shared@0.7.2
+
 ## 0.7.1
 
 ### Patch Changes
