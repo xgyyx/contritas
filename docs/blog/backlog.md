@@ -99,6 +99,16 @@
 - **状态**：✅ 已发布 → [`07-no-thinking-stream.md`](./07-no-thinking-stream.md)
 - **核心命题**：用户在长任务里需要的进度信号只有三类（在哪一步 / 没死 / 还要多久），不需要看 Agent 在搜什么、想什么。审计口径 vs 表演口径——Contritas 选前者，明确不做 Devin/Manus 式的实时演示流。
 
+#### 08. 多 Agent 是糖，状态机是骨
+
+- **状态**：✅ 已发布 → [`08-single-agent-vs-multi-agent.md`](./08-single-agent-vs-multi-agent.md)
+- **核心命题**：尽调的四个硬约束（确定性、审计性、可控成本、可恢复）每一个都与多 Agent 协作打架。单 Agent + 多 Phase 状态机不是落伍，是有意识的架构选择。
+
+#### 09. 让 Agent "等用户说话"——长任务里的 clarification / iterate 异步交互
+
+- **状态**：✅ 已发布 → [`09-clarification-and-iterate-async.md`](./09-clarification-and-iterate-async.md)
+- **核心命题**：长任务 Agent 中途要追问用户怎么实现？Job 阻塞 + Redis Pub/Sub 唤醒 + extendLock 保活，把"暂停-恢复"做成一个函数；而事后 iterate 应该 fork 新 session，不要混为一谈。两套场景，两套机制。
+
 ## 写作原则
 
 - **公众号 / 技术博客口吻**：可以有"我"、可以讲故事、有节奏感

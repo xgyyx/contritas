@@ -17,6 +17,8 @@
 | 05 | [搜索降级链与"接受部分缺失"的工程纪律](./05-search-fallback-and-evidence-discipline.md) | 两层降级 + 缓存边界，"证据不足"是合法尽调结果 |
 | 06 | [报告自检（Phase 5 self-check）—— 让 LLM 给自己挑刺](./06-phase5-self-check.md) | 四道纯代码硬约束 + 回退状态机，能用规则查的不让 LLM 评 |
 | 07 | [为什么 Contritas 不做"实时浏览/深思考演示"？](./07-no-thinking-stream.md) | 反 Devin/Manus 演示流：审计口径 vs 表演口径的产品哲学 |
+| 08 | [多 Agent 是糖，状态机是骨](./08-single-agent-vs-multi-agent.md) | 为什么尽调场景选状态机而不是多 Agent 协作 |
+| 09 | [让 Agent "等用户说话"——长任务里的 clarification / iterate 异步交互](./09-clarification-and-iterate-async.md) | Job 阻塞 + Pub/Sub 唤醒：暂停-恢复 vs fork 两种用户介入模式 |
 
 ## 待写选题
 
